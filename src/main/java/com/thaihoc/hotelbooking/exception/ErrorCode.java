@@ -1,0 +1,60 @@
+package com.thaihoc.hotelbooking.exception;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.Getter;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
+
+@Getter
+    public enum ErrorCode {
+    // ========== USER VALIDATION ==========
+    FULL_NAME_REQUIRED(1001, "FULL_NAME_REQUIRED", HttpStatus.BAD_REQUEST),
+    EMAIL_REQUIRED(1002, "EMAIL_REQUIRED", HttpStatus.BAD_REQUEST),
+    EMAIL_INVALID(1003, "EMAIL_INVALID", HttpStatus.BAD_REQUEST),
+    PASSWORD_REQUIRED(1004, "PASSWORD_REQUIRED", HttpStatus.BAD_REQUEST),
+    PASSWORD_TOO_SHORT(1005, "PASSWORD_TOO_SHORT", HttpStatus.BAD_REQUEST),
+    PHONE_REQUIRED(1006, "PHONE_REQUIRED", HttpStatus.BAD_REQUEST),
+    PHONE_INVALID(1007, "PHONE_INVALID", HttpStatus.BAD_REQUEST),
+    FULL_NAME_INVALID(1008, "FULL_NAME_INVALID", HttpStatus.BAD_REQUEST),
+
+
+    // ========== USER BUSINESS LOGIC ==========
+    USER_EMAIL_ALREADY_EXISTS(1010, "USER_EMAIL_ALREADY_EXISTS", HttpStatus.CONFLICT),
+    USER_PHONE_ALREADY_EXISTS(1011, "USER_PHONE_ALREADY_EXISTS", HttpStatus.CONFLICT),
+    USER_CREATION_FAILED(1012, "USER_CREATION_FAILED", HttpStatus.INTERNAL_SERVER_ERROR),
+
+    // ========== GENERAL ==========
+    USER_INVALID_REQUEST(1100, "USER_INVALID_REQUEST", HttpStatus.BAD_REQUEST),
+    UNHANDLED_EXCEPTION(1999, "UNHANDLED_EXCEPTION", HttpStatus.INTERNAL_SERVER_ERROR),
+    INVALID_KEY(1111,"INVALID_KEY exception", HttpStatus.BAD_REQUEST),
+
+    USER_NOT_FOUND(1013, "USER_NOT_FOUND", HttpStatus.BAD_REQUEST),
+    UNAUTHENTICATED(1014, "UNAUTHENTICATED", HttpStatus.BAD_REQUEST),
+
+    // ========== PERMISSION REQUEST ==========
+    PERMISSION_NOT_FOUND(2010, "PERMISSION_NOT_FOUND", HttpStatus.NOT_FOUND),
+    PERMISSION_ALREADY_EXISTS(2011, "PERMISSION_ALREADY_EXISTS", HttpStatus.CONFLICT),
+    PERMISSION_ASSIGN_FAILED(2012, "PERMISSION_ASSIGN_FAILED", HttpStatus.INTERNAL_SERVER_ERROR),
+    PERMISSION_ACCESS_DENIED(2013, "PERMISSION_ACCESS_DENIED", HttpStatus.FORBIDDEN),
+
+    // ========== ROLE BUSINESS LOGIC ==========
+    ROLE_NAME_ALREADY_EXISTS(3010, "ROLE_NAME_ALREADY_EXISTS", HttpStatus.CONFLICT),
+    ROLE_CREATION_FAILED(3011, "ROLE_CREATION_FAILED", HttpStatus.INTERNAL_SERVER_ERROR),
+    ROLE_NOT_FOUND(3012, "ROLE_NOT_FOUND", HttpStatus.NOT_FOUND),
+    ROLE_PERMISSION_INVALID(3013, "ROLE_PERMISSION_INVALID", HttpStatus.BAD_REQUEST),
+    ROLE_ASSIGN_FAILED(3014, "ROLE_ASSIGN_FAILED", HttpStatus.INTERNAL_SERVER_ERROR),
+    ROLE_IN_USE(3015, "ROLE_IN_USE", HttpStatus.CONFLICT),
+    ROLE_DELETE_FAILED(3016, "ROLE_DELETE_FAILED", HttpStatus.INTERNAL_SERVER_ERROR);
+
+    ;
+    ErrorCode(int code, String message, HttpStatusCode httpStatusCode) {
+        this.code = code;
+        this.message = message;
+        this.httpStatusCode = httpStatusCode;
+    }
+
+    private int code;
+    private String message;
+    private HttpStatusCode httpStatusCode;
+}
