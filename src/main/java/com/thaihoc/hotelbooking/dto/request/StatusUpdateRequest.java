@@ -2,13 +2,13 @@ package com.thaihoc.hotelbooking.dto.request;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Getter;
+import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Getter
-@NoArgsConstructor
+@Data
 @AllArgsConstructor
+@NoArgsConstructor
 @Builder
-public class IntrospectRequest {
-    private String token;
+public class StatusUpdateRequest {
+    private String status;
 }

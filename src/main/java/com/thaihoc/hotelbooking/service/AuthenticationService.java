@@ -64,8 +64,10 @@ public class AuthenticationService {
 
         boolean valid = true;
 
+
         try {
             verifyToken(token);
+
         }catch (AppException exception){
             valid = false;
         }
@@ -124,15 +126,23 @@ public class AuthenticationService {
     private SignedJWT verifyToken(String token) throws JOSEException, ParseException {
 
         JWSVerifier jwsVerifier = new MACVerifier(SINGER_KEY.getBytes());
+
         SignedJWT signedJWT = SignedJWT.parse(token);
 
         Date exp = signedJWT.getJWTClaimsSet().getExpirationTime();
+
         var verified = signedJWT.verify(jwsVerifier);
 
-        if(!verified)
+        if(!verified) {
+            System.out.println("!verified");
+            throw new AppException(ErrorCode.UNAUTHENTICATED);}
+
+
+        if (new Date().after(exp)) {
+            // Token đã hết hạn
             throw new AppException(ErrorCode.UNAUTHENTICATED);
-        if(exp.after(new Date()))
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
 
         return signedJWT;
     }
