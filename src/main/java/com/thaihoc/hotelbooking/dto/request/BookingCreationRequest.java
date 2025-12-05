@@ -1,5 +1,6 @@
 package com.thaihoc.hotelbooking.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.Column;
 import lombok.*;
 
@@ -13,17 +14,22 @@ import java.time.LocalDateTime;
 @Builder
 public class BookingCreationRequest {
 
-    private Long userId;            // ID của khách hàng
-    private Long roomTypeId;        // Loại phòng
-    private Long bookingTypeId;     // Loại booking (theo ngày, theo giờ...)
-    private String roomId;            // Phòng cụ thể (nếu chọn trước)
+    private Long roomTypeId;        // Loại phòng (hệ thống sẽ tự chọn room cụ thể)
 
-    private LocalDateTime checkInDate;
-    private LocalDateTime checkOutDate;
+    private String bookingTypeCode; // NIGHT, DAY, HOURLY
+
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime checkInDate;   // Ngày giờ check-in
+
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime checkOutDate;  // Ngày giờ check-out
 
     private Integer numberOfGuests; // Số lượng khách
+
     private String specialRequests; // Yêu cầu đặc biệt
 
-    private String bookingSource;   // Nguồn booking (web, app, lễ tân...)
-    private String paymentMethod; // "PAY_AT_HOTEL" hoặc "ONLINE"
+    private String bookingSource;   // WEB, APP, RECEPTION
+
+    private String paymentMethod;   // PAY_AT_HOTEL hoặc ONLINE
 }
+

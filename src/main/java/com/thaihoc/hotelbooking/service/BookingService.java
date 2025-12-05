@@ -2,10 +2,7 @@ package com.thaihoc.hotelbooking.service;
 
 import com.thaihoc.hotelbooking.dto.request.BookingCreationRequest;
 import com.thaihoc.hotelbooking.dto.response.BookingResponse;
-import com.thaihoc.hotelbooking.entity.Booking;
-import com.thaihoc.hotelbooking.entity.RoomType;
-import com.thaihoc.hotelbooking.entity.RoomTypeBookingTypePrice;
-import com.thaihoc.hotelbooking.entity.User;
+import com.thaihoc.hotelbooking.entity.*;
 import com.thaihoc.hotelbooking.exception.AppException;
 import com.thaihoc.hotelbooking.exception.ErrorCode;
 import com.thaihoc.hotelbooking.mapper.BookingMapper;
@@ -43,25 +40,30 @@ public class BookingService {
     private BookingMapper bookingMapper;
 
     @Autowired
+    private BookingTypeRepository bookingTypeRepository;
+
+    @Autowired
     private  RoomAvailabilityService roomAvailabilityService;
 
     @PreAuthorize("hasAuthority('SCOPE_ROLE_CUSTOMER')")
     public BookingResponse createBooking(BookingCreationRequest request) {
-        log.info("Create booking request: roomTypeId={}, bookingTypeId={}, checkIn={}, checkOut={}, paymentMethod={}",
-                request.getRoomTypeId(), request.getBookingTypeId(),
+
+        log.info("Create booking request: roomTypeCode={}, bookingTypeId={}, checkIn={}, checkOut={}, paymentMethod={}",
+                request.getRoomTypeId(), request.getBookingTypeCode(),
                 request.getCheckInDate(), request.getCheckOutDate(),
                 request.getPaymentMethod());
 
 
-
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String email = authentication.getName();
-
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
         RoomType roomType = roomTypeRepository.findById(request.getRoomTypeId())
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_TYPE_NOT_FOUND));
+
+        BookingType bookingType = bookingTypeRepository.findByCode(request.getBookingTypeCode())
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_TYPE_NOT_FOUND));
 
         // ✅ Kiểm tra phòng trống trước khi tạo booking
         boolean available = roomAvailabilityService.isRoomTypeAvailable(
@@ -70,8 +72,6 @@ public class BookingService {
                 request.getCheckOutDate()
         );
 
-
-
         if (!available) {
             throw new AppException(ErrorCode.BOOKING_ROOM_NOT_AVAILABLE);
         }
@@ -79,7 +79,7 @@ public class BookingService {
         RoomTypeBookingTypePrice priceConfig = roomTypeBookingTypePriceRepository
                 .findByRoomType_IdAndBookingType_IdAndIsActive(
                         request.getRoomTypeId(),
-                        request.getBookingTypeId(),
+                        bookingType.getId(),
                         true
                 )
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_TYPE_BOOKING_TYPE_PRICE_NOT_FOUND));
