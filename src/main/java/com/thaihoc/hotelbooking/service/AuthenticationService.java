@@ -9,6 +9,7 @@ import com.thaihoc.hotelbooking.dto.response.IntrospectResponse;
 import com.thaihoc.hotelbooking.entity.User;
 import com.thaihoc.hotelbooking.exception.AppException;
 import com.thaihoc.hotelbooking.exception.ErrorCode;
+import com.thaihoc.hotelbooking.mapper.UserMapper;
 import com.thaihoc.hotelbooking.repository.UserRepository;
 import lombok.experimental.NonFinal;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,7 +35,10 @@ public class AuthenticationService {
     @NonFinal
     protected final String SINGER_KEY = "/q/Ur0Q2M4h8Csuu67iSpYIg3JlpLD7Ex6nZZMvbt9QvcK0RDwpKtAIIg86jRKSG";
 
-    public String authenticate(AuthenticationRequest request){
+    @Autowired
+    UserMapper userMapper;
+
+    public AuthenticationResponse authenticate(AuthenticationRequest request){
 
         User user = new User();
 
@@ -55,8 +59,11 @@ public class AuthenticationService {
         if(!authenticated)
             throw new AppException(ErrorCode.UNAUTHENTICATED);
 
-
-        return genToken(user);
+        return AuthenticationResponse.builder()
+                .authenticated(true)
+                .token(genToken(user))
+                .user(userMapper.toUserResponse(user))
+                .build();
     }
 
     public IntrospectResponse introspect(IntrospectRequest request) throws ParseException, JOSEException {

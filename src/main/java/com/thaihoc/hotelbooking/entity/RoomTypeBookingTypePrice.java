@@ -42,5 +42,12 @@ public class RoomTypeBookingTypePrice {
     @Column(name = "weekend_surcharge")
     private BigDecimal weekendSurcharge;
 
+    @Column(name = "additional_hour_price")
+    private BigDecimal additionalHourPrice;
+
+    @Column(name = "max_hours")
+    private Integer maxHours;
+
+
 }
 

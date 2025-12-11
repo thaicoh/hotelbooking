@@ -9,6 +9,7 @@ import com.thaihoc.hotelbooking.exception.ErrorCode;
 import com.thaihoc.hotelbooking.mapper.UserMapper;
 import com.thaihoc.hotelbooking.repository.RoleRepository;
 import com.thaihoc.hotelbooking.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -20,6 +21,7 @@ import java.util.HashSet;
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class UserService {
     @Autowired
     private UserRepository userRepository;
@@ -30,7 +32,10 @@ public class UserService {
     @Autowired
     private RoleRepository roleRepository;
 
+    private final OtpStore otpStore;
+
     public UserResponse create(UserCreationRequest request){
+
         if(userRepository.existsByEmail(request.getEmail())){
             throw new AppException(ErrorCode.USER_EMAIL_ALREADY_EXISTS);
         }
@@ -38,6 +43,16 @@ public class UserService {
         if(userRepository.existsByPhone(request.getPhone())){
             throw new AppException(ErrorCode.USER_PHONE_ALREADY_EXISTS);
         }
+
+        // ✅ 1. Email phải được verify OTP trước
+        if (!otpStore.isVerified(request.getEmail())) {
+            throw new AppException(ErrorCode.USER_CREATION_FAILED);
+        }
+
+
+
+
+
 
         User user = userMapper.toUser(request);
 
@@ -47,7 +62,6 @@ public class UserService {
         HashSet<Role> roles = new HashSet<>();
 
         roleRepository.findById("CUSTOMER").ifPresent(role -> roles.add(role));
-
 
         user.setRoles(roles);
 

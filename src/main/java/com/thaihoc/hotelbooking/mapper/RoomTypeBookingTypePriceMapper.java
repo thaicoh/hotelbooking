@@ -21,7 +21,7 @@ public interface RoomTypeBookingTypePriceMapper {
     // Chuyển từ Entity -> Response
     @Mapping(source = "roomType.id", target = "roomTypeId")
     @Mapping(source = "bookingType.id", target = "bookingTypeId")
-    RoomTypeBookingTypePriceResponse toResponse(RoomTypeBookingTypePrice entity);
+    RoomTypeBookingTypePriceResponse toResponse(RoomTypeBookingTypePrice request);
 
     // Cập nhật entity từ UpdateRequest
     void updateEntity(@MappingTarget RoomTypeBookingTypePrice entity,

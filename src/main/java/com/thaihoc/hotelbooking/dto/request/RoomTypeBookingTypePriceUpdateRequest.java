@@ -19,5 +19,8 @@ public class RoomTypeBookingTypePriceUpdateRequest {
     private LocalDate effectiveDate; // Ngày hiệu lực mới (nullable)
     private Boolean isActive;       // Trạng thái hoạt động (nullable)
     private BigDecimal weekendSurcharge; // Phụ phí cuối tuần mới (nullable)
+
+    private BigDecimal additionalHourPrice;
+    private Integer maxHours;
 }
 

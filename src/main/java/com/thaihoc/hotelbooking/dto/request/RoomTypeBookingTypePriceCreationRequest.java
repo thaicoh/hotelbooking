@@ -19,5 +19,8 @@ public class RoomTypeBookingTypePriceCreationRequest {
     private LocalDate effectiveDate; // Ngày bắt đầu hiệu lực
     private Boolean isActive;      // Trạng thái hoạt động
     private BigDecimal weekendSurcharge; // Phụ phí cuối tuần
+
+    private BigDecimal additionalHourPrice;
+    private Integer maxHours;
 }
 

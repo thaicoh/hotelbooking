@@ -1,5 +1,6 @@
 package com.thaihoc.hotelbooking.dto.response;
 
+import jakarta.persistence.Column;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -20,4 +21,8 @@ public class RoomTypeBookingTypePriceResponse {
     private LocalDate effectiveDate; // Ngày bắt đầu hiệu lực
     private Boolean isActive;      // Trạng thái hoạt động
     private BigDecimal weekendSurcharge; // Phụ phí cuối tuần
+
+    // update database
+    private BigDecimal additionalHourPrice;
+    private Integer maxHours;
 }

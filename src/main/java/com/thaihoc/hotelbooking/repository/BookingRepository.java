@@ -12,12 +12,12 @@ import java.util.List;
 public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     @Query("""
-        SELECT COUNT(b) FROM Booking b
-        WHERE b.room.roomType.id = :roomTypeId
-          AND b.status IN :statuses
-          AND b.checkInDate < :checkOut
-          AND b.checkOutDate > :checkIn
-    """)
+    SELECT COUNT(b) FROM Booking b
+    WHERE b.roomType.id = :roomTypeId
+      AND b.status IN :statuses
+      AND b.checkInDate < :checkOut
+      AND b.checkOutDate > :checkIn
+""")
     int countActiveBookingsByRoomTypeAndDateRange(
             @Param("roomTypeId") Long roomTypeId,
             @Param("statuses") List<String> statuses,
