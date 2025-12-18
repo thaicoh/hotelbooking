@@ -37,7 +37,7 @@ public class RoomType {
      * Thuộc tính 3: type_name
      * - Tên loại phòng (Ví dụ: "Standard", "Deluxe", "VIP").
      */
-    @Column(name = "type_name", nullable = false, length = 100, unique = true)
+    @Column(name = "type_name", nullable = false, length = 100)
     private String typeName;
 
     /**

@@ -104,4 +104,15 @@ public class RoomService {
         return roomMapper.toRoomResponse(roomRepository.findById(id)
                 .orElseThrow(() ->  new AppException(ErrorCode.ROOM_NOT_FOUND)));
     }
+
+    public List<RoomResponse> getRoomsByRoomType(Long roomTypeId) {
+
+        // Kiểm tra room type có tồn tại không
+        roomTypeRepository.findById(roomTypeId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_TYPE_NOT_FOUND));
+
+        List<Room> rooms = roomRepository.findByRoomTypeId(roomTypeId);
+
+        return roomMapper.toRoomResponseList(rooms);
+    }
 }

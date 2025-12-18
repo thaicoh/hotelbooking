@@ -1,13 +1,12 @@
 package com.thaihoc.hotelbooking.controller;
 
 import com.nimbusds.jose.JOSEException;
-import com.thaihoc.hotelbooking.dto.request.AuthenticationRequest;
-import com.thaihoc.hotelbooking.dto.request.IntrospectRequest;
-import com.thaihoc.hotelbooking.dto.request.SendOtpRequest;
-import com.thaihoc.hotelbooking.dto.request.VerifyOtpRequest;
+import com.thaihoc.hotelbooking.dto.request.*;
 import com.thaihoc.hotelbooking.dto.response.ApiResponse;
 import com.thaihoc.hotelbooking.dto.response.AuthenticationResponse;
 import com.thaihoc.hotelbooking.dto.response.IntrospectResponse;
+import com.thaihoc.hotelbooking.exception.AppException;
+import com.thaihoc.hotelbooking.exception.ErrorCode;
 import com.thaihoc.hotelbooking.service.AuthenticationService;
 import com.thaihoc.hotelbooking.service.OtpService;
 import jakarta.validation.Valid;
@@ -44,9 +43,29 @@ public class AuthenticationController {
                 .build();
     }
 
+    @PostMapping("/logout")
+    ApiResponse<Void> logout( @RequestBody LogoutRequest request) throws ParseException, JOSEException {
+
+        authenticationService.logout(request);
+
+        return ApiResponse.<Void>builder()
+                .build();
+    }
+
+    @PostMapping("/refresh")
+    ApiResponse<AuthenticationResponse> logout( @RequestBody RefreshTokenRequest request) throws ParseException, JOSEException {
+
+        return ApiResponse.<AuthenticationResponse>builder()
+                .result(authenticationService.refreshToken(request))
+                .build();
+    }
+
+
+
+
     // ✅ 1. Gửi OTP
     @PostMapping("/send-otp")
-    public ApiResponse<String> sendOtp(@RequestBody SendOtpRequest request) {
+    public ApiResponse<String> sendOtp(@RequestBody @Valid SendOtpRequest request) {
         otpService.sendOtp(request);
         return ApiResponse.<String>builder()
                 .result("OTP sent")
@@ -59,25 +78,13 @@ public class AuthenticationController {
         boolean isValid = otpService.verifyOtp(request.getGmail(), request.getOtp());
 
         if (!isValid) {
-            throw  new RuntimeException("Invalid OTP");
+            throw  new AppException(ErrorCode.INVALID_OTP);
         }
 
         return ApiResponse.<String>builder()
                 .result("success")
                 .build();
     }
-
-/*    // ✅ 3. Đăng ký sau khi OTP hợp lệ
-    @PostMapping("/register")
-    public ApiResponse<String> register(@RequestBody RegisterRequest request) {
-
-        if (!otpService.isPhoneVerified(request.getPhoneNumber())) {
-            return ResponseEntity.badRequest().body("Số điện thoại chưa được xác thực OTP");
-        }
-
-        userService.register(request);
-        return ResponseEntity.ok("Đăng ký thành công");
-    }*/
 
 
 }

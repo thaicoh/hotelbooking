@@ -1,5 +1,6 @@
 package com.thaihoc.hotelbooking.entity;
 
+import com.thaihoc.hotelbooking.enums.UserStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -34,4 +35,12 @@ public class User {
 
     @ManyToMany
     private Set<Role> roles;
+
+    // ⭐ Quan hệ với Branch (nullable nếu không phải staff)
+    @ManyToOne
+    @JoinColumn(name = "branch_id", nullable = true)
+    private Branch branch;
+
+    @Enumerated(EnumType.STRING)
+    private UserStatus status;
 }

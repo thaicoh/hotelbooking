@@ -13,8 +13,6 @@ import java.math.BigDecimal;
 @Builder
 public class RoomTypeUpdateRequest {
 
-    private String branchId;
-
     private String typeName;
 
     private Integer capacity;

@@ -4,15 +4,22 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.MACVerifier;
 import com.thaihoc.hotelbooking.dto.request.AuthenticationRequest;
 import com.thaihoc.hotelbooking.dto.request.IntrospectRequest;
+import com.thaihoc.hotelbooking.dto.request.LogoutRequest;
+import com.thaihoc.hotelbooking.dto.request.RefreshTokenRequest;
 import com.thaihoc.hotelbooking.dto.response.AuthenticationResponse;
 import com.thaihoc.hotelbooking.dto.response.IntrospectResponse;
+import com.thaihoc.hotelbooking.entity.InvalidatedToken;
 import com.thaihoc.hotelbooking.entity.User;
+import com.thaihoc.hotelbooking.enums.UserStatus;
 import com.thaihoc.hotelbooking.exception.AppException;
 import com.thaihoc.hotelbooking.exception.ErrorCode;
 import com.thaihoc.hotelbooking.mapper.UserMapper;
+import com.thaihoc.hotelbooking.repository.InvalidatedTokenRepository;
 import com.thaihoc.hotelbooking.repository.UserRepository;
 import lombok.experimental.NonFinal;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -25,40 +32,71 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.StringJoiner;
+import java.util.UUID;
 
 
 @Service
+@Log4j2
 public class AuthenticationService {
     @Autowired
     UserRepository userRepository;
 
+/*
     @NonFinal
-    protected final String SINGER_KEY = "/q/Ur0Q2M4h8Csuu67iSpYIg3JlpLD7Ex6nZZMvbt9QvcK0RDwpKtAIIg86jRKSG";
+    protected final String SINGER_KEY = "";
+*/
+
+    @Value("${jwt.signerKey}")
+    protected String SINGER_KEY;
+
+    @NonFinal
+    @Value("${jwt.valid-duration}")
+    protected long VALID_DURATION;
+
+
+    @NonFinal
+    @Value("${jwt.refreshable-duration}")
+    protected long REFRESHABLE_DURATION;
+
+
+
 
     @Autowired
     UserMapper userMapper;
 
+    @Autowired
+    InvalidatedTokenRepository invalidatedTokenRepository;
+
     public AuthenticationResponse authenticate(AuthenticationRequest request){
 
-        User user = new User();
+        User user;
 
-        AuthenticationResponse response = new AuthenticationResponse();
-
-        if(userRepository.existsByPhone(request.getPhoneOrEmail())){
-            user = userRepository.findByPhone(request.getPhoneOrEmail()).orElseThrow(() -> new AppException(ErrorCode.UNHANDLED_EXCEPTION));
+        // ⭐ Tìm user theo phone hoặc email
+        if (userRepository.existsByPhone(request.getPhoneOrEmail())) {
+            user = userRepository.findByPhone(request.getPhoneOrEmail())
+                    .orElseThrow(() -> new AppException(ErrorCode.UNHANDLED_EXCEPTION));
         } else if (userRepository.existsByEmail(request.getPhoneOrEmail())) {
-            user = userRepository.findByEmail(request.getPhoneOrEmail()).orElseThrow(() -> new AppException(ErrorCode.UNHANDLED_EXCEPTION));
+            user = userRepository.findByEmail(request.getPhoneOrEmail())
+                    .orElseThrow(() -> new AppException(ErrorCode.UNHANDLED_EXCEPTION));
         } else {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
+            throw new AppException(ErrorCode.USER_NOT_FOUND);
         }
 
 
+
+        // ⭐ Kiểm tra mật khẩu
         PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
         boolean authenticated = passwordEncoder.matches(request.getPassword(), user.getPasswordHash());
 
-        if(!authenticated)
+        if (!authenticated)
             throw new AppException(ErrorCode.UNAUTHENTICATED);
 
+        // ⭐ Bước kiểm tra trạng thái user
+        if (user.getStatus() == UserStatus.LOGIN_LOCKED) {
+            throw new AppException(ErrorCode.USER_LOGIN_LOCKED);
+        }
+
+        // ⭐ Trả về token
         return AuthenticationResponse.builder()
                 .authenticated(true)
                 .token(genToken(user))
@@ -73,7 +111,7 @@ public class AuthenticationService {
 
 
         try {
-            verifyToken(token);
+            verifyToken(token, false);
 
         }catch (AppException exception){
             valid = false;
@@ -94,8 +132,9 @@ public class AuthenticationService {
                 .issuer("hotel_booking.con")
                 .issueTime(new Date())
                 .expirationTime(new Date(
-                        Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli()
+                        Instant.now().plus(VALID_DURATION, ChronoUnit.SECONDS).toEpochMilli()
                 ))
+                .jwtID(UUID.randomUUID().toString())
                 .claim("scope", buildScope(user))
                 .build();
 
@@ -130,13 +169,16 @@ public class AuthenticationService {
         return stringJoiner.toString();
     }
 
-    private SignedJWT verifyToken(String token) throws JOSEException, ParseException {
+    private SignedJWT verifyToken(String token, boolean isRefresh) throws JOSEException, ParseException {
 
         JWSVerifier jwsVerifier = new MACVerifier(SINGER_KEY.getBytes());
 
         SignedJWT signedJWT = SignedJWT.parse(token);
 
-        Date exp = signedJWT.getJWTClaimsSet().getExpirationTime();
+        Date exp = (isRefresh)
+                ? new Date(signedJWT.getJWTClaimsSet().getIssueTime()
+                            .toInstant().plus(REFRESHABLE_DURATION, ChronoUnit.SECONDS).toEpochMilli())
+                : signedJWT.getJWTClaimsSet().getExpirationTime();
 
         var verified = signedJWT.verify(jwsVerifier);
 
@@ -152,5 +194,56 @@ public class AuthenticationService {
 
 
         return signedJWT;
+    }
+
+    public void logout(LogoutRequest request) throws ParseException, JOSEException {
+
+        try {
+
+            var signToken = verifyToken(request.getToken(), true);
+
+            String jit = signToken.getJWTClaimsSet().getJWTID();
+            Date exp = signToken.getJWTClaimsSet().getExpirationTime();
+
+            InvalidatedToken invalidatedToken = InvalidatedToken.builder()
+                    .id(jit)
+                    .expireTime(exp)
+                    .build();
+
+            invalidatedTokenRepository.save(invalidatedToken);
+
+        }catch (AppException exception){
+            log.info("logout with expired token");
+        }
+
+    }
+
+    public AuthenticationResponse refreshToken(RefreshTokenRequest request) throws ParseException, JOSEException {
+
+        var signJWT = verifyToken(request.getToken(), true);
+
+        var jit = signJWT.getJWTClaimsSet().getJWTID();
+        Date exp = signJWT.getJWTClaimsSet().getExpirationTime();
+
+        InvalidatedToken invalidatedToken = InvalidatedToken.builder()
+                .id(jit)
+                .expireTime(exp)
+                .build();
+
+        invalidatedTokenRepository.save(invalidatedToken);
+
+        var userGmail = signJWT.getJWTClaimsSet().getSubject();
+
+        var user = userRepository.findByEmail(userGmail)
+                .orElseThrow(()-> new AppException(ErrorCode.UNAUTHENTICATED));
+
+        var token = genToken(user);
+
+        return AuthenticationResponse.builder()
+                .token(token)
+                .authenticated(true)
+                .user(userMapper.toUserResponse(user))
+                .build();
+
     }
 }

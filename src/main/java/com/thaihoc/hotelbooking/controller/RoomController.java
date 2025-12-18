@@ -60,5 +60,12 @@ public class RoomController {
                 .result(roomService.getRoom(id))
                 .build();
     }
+    @GetMapping("/type/{roomTypeId}")
+    private ApiResponse<List<RoomResponse>> getRoomsByRoomType(@PathVariable Long roomTypeId) {
+        return ApiResponse.<List<RoomResponse>>builder()
+                .result(roomService.getRoomsByRoomType(roomTypeId))
+                .build();
+    }
+
 
 }

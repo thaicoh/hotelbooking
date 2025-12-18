@@ -3,15 +3,14 @@ package com.thaihoc.hotelbooking.service;
 import com.thaihoc.hotelbooking.dto.request.RoomTypeCreationRequest;
 import com.thaihoc.hotelbooking.dto.request.RoomTypeUpdateRequest;
 import com.thaihoc.hotelbooking.dto.response.RoomTypeResponse;
+import com.thaihoc.hotelbooking.dto.response.RoomTypeSummaryResponse;
+import com.thaihoc.hotelbooking.entity.RoomPhoto;
 import com.thaihoc.hotelbooking.entity.RoomType;
 import com.thaihoc.hotelbooking.exception.AppException;
 import com.thaihoc.hotelbooking.exception.ErrorCode;
 import com.thaihoc.hotelbooking.mapper.BranchMapper;
 import com.thaihoc.hotelbooking.mapper.RoomTypeMapper;
-import com.thaihoc.hotelbooking.repository.BookingRepository;
-import com.thaihoc.hotelbooking.repository.BranchRepository;
-import com.thaihoc.hotelbooking.repository.RoomPhotoRepository;
-import com.thaihoc.hotelbooking.repository.RoomTypeRepository;
+import com.thaihoc.hotelbooking.repository.*;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -19,6 +18,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -42,6 +42,9 @@ public class RoomTypeService {
 
     @Autowired
     RoomPhotoRepository roomPhotoRepository;
+
+    @Autowired
+    private RoomTypeBookingTypePriceRepository priceRepository;
 
 
     public RoomTypeResponse create(RoomTypeCreationRequest request) {
@@ -93,10 +96,6 @@ public class RoomTypeService {
 
         roomTypeMapper.updateRoomType(roomType, request);
 
-        roomType.setBranch(
-                branchRepository.findById(request.getBranchId()).orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND))
-        );
-
         RoomType savedRoomType = roomTypeRepository.save(roomType);
 
         return roomTypeMapper.toRoomTypeResponse(savedRoomType);
@@ -104,5 +103,47 @@ public class RoomTypeService {
 
     public RoomTypeResponse findById(Long id) {
         return roomTypeMapper.toRoomTypeResponse(roomTypeRepository.findById(id).orElseThrow(() -> new AppException(ErrorCode.ROOM_TYPE_NOT_FOUND)));
+    }
+
+    public List<RoomTypeResponse> findByBranchId(String branchId) {
+
+        if (!branchRepository.existsById(branchId)) {
+            throw new AppException(ErrorCode.BRANCH_NOT_FOUND);
+        }
+
+        return roomTypeRepository.findByBranchId(branchId)
+                .stream()
+                .map(roomTypeMapper::toRoomTypeResponse)
+                .collect(Collectors.toList());
+    }
+
+    public List<RoomTypeSummaryResponse> getSummaryByBranch(String branchId) {
+
+        List<RoomType> roomTypes = roomTypeRepository.findByBranchId(branchId);
+
+        return roomTypes.stream().map(rt -> {
+
+            // Ảnh chính
+            String mainPhoto = roomPhotoRepository
+                    .findByRoomTypeIdAndIsMainTrue(rt.getId())
+                    .map(RoomPhoto::getPhotoUrl)
+                    .orElse(null);
+
+            // Số phòng
+            Long roomCount = roomPhotoRepository.countByRoomTypeId(rt.getId());
+
+            // Giá thấp nhất
+            BigDecimal minPrice = priceRepository.findMinPriceByRoomTypeId(rt.getId());
+
+            return RoomTypeSummaryResponse.builder()
+                    .id(rt.getId())
+                    .typeName(rt.getTypeName())
+                    .capacity(rt.getCapacity())
+                    .mainPhotoUrl(mainPhoto)
+                    .roomCount(roomCount)
+                    .minPrice(minPrice)
+                    .build();
+
+        }).toList();
     }
 }

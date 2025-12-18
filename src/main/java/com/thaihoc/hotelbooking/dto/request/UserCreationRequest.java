@@ -33,6 +33,4 @@ public class UserCreationRequest {
     @NotBlank(message = "PHONE_REQUIRED")
     @Pattern(regexp = "^(\\+84|0)[0-9]{9,10}$", message = "PHONE_INVALID")
     private String phone;
-
-    private LocalDateTime createdAt;
 }

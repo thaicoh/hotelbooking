@@ -1,6 +1,7 @@
 package com.thaihoc.hotelbooking.dto.response;
 
 import com.thaihoc.hotelbooking.entity.Role;
+import com.thaihoc.hotelbooking.enums.UserStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,7 +17,7 @@ import java.util.Set;
 @Builder
 public class UserResponse {
 
-    private String userId;
+    //private String userId;
 
     private String fullName;
 
@@ -26,7 +27,13 @@ public class UserResponse {
 
     private LocalDateTime createdAt;
 
-    private String passwordHash;
+    //private String passwordHash;
 
     private Set<RoleResponse> roles;
+
+    private String branchId;
+
+    // ⭐ Trạng thái mới
+    private UserStatus status;
+
 }

@@ -7,7 +7,7 @@ import com.thaihoc.hotelbooking.entity.RoomType;
 import org.mapstruct.Mapper;
 import org.mapstruct.MappingTarget;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = {BranchMapper.class})
 public interface RoomTypeMapper {
 
     RoomType toRoomType(RoomTypeCreationRequest request);

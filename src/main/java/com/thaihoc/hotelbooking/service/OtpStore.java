@@ -43,6 +43,7 @@ public class OtpStore {
             redisTemplate.delete(key);
             return true;
         }
+
         return false;
     }
 

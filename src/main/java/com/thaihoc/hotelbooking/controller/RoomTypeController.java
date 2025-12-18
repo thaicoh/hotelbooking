@@ -54,4 +54,11 @@ public class RoomTypeController {
                 .result(roomTypeService.findById(id))
                 .build();
     }
+
+    @GetMapping("/branch/{branchId}")
+    private ApiResponse<List<RoomTypeResponse>> getRoomTypesByBranch(@PathVariable String branchId) {
+        return ApiResponse.<List<RoomTypeResponse>>builder()
+                .result(roomTypeService.findByBranchId(branchId))
+                .build();
+    }
 }

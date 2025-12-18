@@ -2,6 +2,7 @@ package com.thaihoc.hotelbooking.configuration;
 
 import com.thaihoc.hotelbooking.entity.Role;
 import com.thaihoc.hotelbooking.entity.User;
+import com.thaihoc.hotelbooking.enums.UserStatus;
 import com.thaihoc.hotelbooking.repository.RoleRepository;
 import com.thaihoc.hotelbooking.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Optional;
 
@@ -41,8 +44,10 @@ public class ApplicationInitConfig {
                         .fullName("admin")
                         .email("admin")
                         .roles(roles)
+                        .status(UserStatus.ACTIVE)
                         .passwordHash(passwordEncoder.encode("admin"))
                         .phone("00000000")
+                        .createdAt(LocalDateTime.now())
                         .build();
 
                 userRepository.save(adminUser);
