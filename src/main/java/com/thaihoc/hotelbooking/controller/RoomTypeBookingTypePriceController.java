@@ -58,4 +58,12 @@ public class RoomTypeBookingTypePriceController {
                 .build();
     }
 
+    // Lấy tất cả theo roomTypeId
+    @GetMapping("/room-type/{roomTypeId}")
+    public ApiResponse<List<RoomTypeBookingTypePriceResponse>> findByRoomTypeId(@PathVariable Long roomTypeId) {
+        return ApiResponse.<List<RoomTypeBookingTypePriceResponse>>builder()
+                .result(priceService.findByRoomTypeId(roomTypeId))
+                .build();
+    }
+
 }

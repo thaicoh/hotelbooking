@@ -1,7 +1,9 @@
 package com.thaihoc.hotelbooking.service;
 
 import com.thaihoc.hotelbooking.dto.request.BookingCreationRequest;
+import com.thaihoc.hotelbooking.dto.response.BookingListItemResponse;
 import com.thaihoc.hotelbooking.dto.response.BookingResponse;
+import com.thaihoc.hotelbooking.dto.response.PageResponse;
 import com.thaihoc.hotelbooking.entity.*;
 import com.thaihoc.hotelbooking.exception.AppException;
 import com.thaihoc.hotelbooking.exception.ErrorCode;
@@ -9,6 +11,10 @@ import com.thaihoc.hotelbooking.mapper.BookingMapper;
 import com.thaihoc.hotelbooking.repository.*;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -20,6 +26,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -46,6 +53,10 @@ public class BookingService {
 
     @Autowired
     private  RoomAvailabilityService roomAvailabilityService;
+
+    @Autowired
+    private PaymentRepository paymentRepository;
+
 
     @PreAuthorize("hasAuthority('SCOPE_ROLE_CUSTOMER')")
     public BookingResponse createBooking(BookingCreationRequest request) {
@@ -120,6 +131,55 @@ public class BookingService {
         bookingRepository.save(booking);
 
         return bookingMapper.toResponse(booking);
+    }
+
+    public PageResponse<BookingListItemResponse> getAllBookings(
+            int page,
+            int size,
+            String search,
+            String branchId,
+            Long roomTypeId,
+            String bookingTypeCode,
+            String status,
+            Boolean isPaid,
+            LocalDate checkInDate
+    ) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+
+        // TODO: viết Specification hoặc query động để lọc theo các tham số
+        Page<Booking> bookingPage = bookingRepository.findAll(pageable);
+
+        List<BookingListItemResponse> items = bookingPage.getContent().stream().map(booking -> {
+            Payment latestPayment = paymentRepository
+                    .findTopByBookingOrderByPaymentDateDesc(booking)
+                    .orElse(null);
+
+            return BookingListItemResponse.builder()
+                    .bookingId(booking.getBookingId())
+                    .bookingReference(booking.getBookingReference())
+                    .customerName(booking.getUser().getFullName())
+                    .customerPhone(booking.getUser().getPhone())
+                    .branchName(booking.getRoomType().getBranch().getBranchName())
+                    .roomTypeName(booking.getRoomType().getTypeName())
+                    .bookingTypeName(booking.getBookingType().getName())
+                    .checkInDate(booking.getCheckInDate())
+                    .checkOutDate(booking.getCheckOutDate())
+                    .totalPrice(booking.getTotalPrice())
+                    .currency("VND") // hoặc lấy từ price config
+                    .status(booking.getStatus())
+                    .isPaid(booking.getIsPaid())
+                    .paymentStatus(latestPayment != null ? latestPayment.getPaymentStatus() : null)
+                    .createdAt(booking.getCreatedAt())
+                    .build();
+        }).toList();
+
+        return PageResponse.<BookingListItemResponse>builder()
+                .items(items)
+                .page(bookingPage.getNumber())
+                .size(bookingPage.getSize())
+                .totalElements(bookingPage.getTotalElements())
+                .totalPages(bookingPage.getTotalPages())
+                .build();
     }
 
 
@@ -212,7 +272,6 @@ public class BookingService {
         // Trả về tổng giá tiền
         return totalPrice;
     }
-
 
     private void validateBooking(BookingCreationRequest request, BookingType bookingType) {
         // Kiểm tra check-out không được trước thời điểm hiện tại

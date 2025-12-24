@@ -18,7 +18,7 @@ public class Room {
     @GeneratedValue(strategy = GenerationType.UUID)
     private String roomId;
 
-    @Column(unique = true, nullable = false)
+    @Column( nullable = false)
     private Integer roomNumber;
 
     private String status; // "Available", "Occupied", "Maintenance"

@@ -33,5 +33,4 @@ public interface RoomTypeBookingTypePriceRepository extends JpaRepository<RoomTy
     """)
     BigDecimal findMinPriceByRoomTypeId(@Param("roomTypeId") Long roomTypeId);
 
-
 }

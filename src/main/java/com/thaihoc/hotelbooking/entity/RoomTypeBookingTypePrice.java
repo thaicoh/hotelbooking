@@ -48,6 +48,5 @@ public class RoomTypeBookingTypePrice {
     @Column(name = "max_hours")
     private Integer maxHours;
 
-
 }
 

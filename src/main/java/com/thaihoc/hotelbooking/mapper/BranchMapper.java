@@ -5,6 +5,7 @@ import com.thaihoc.hotelbooking.dto.request.BranchUpdateRequest;
 import com.thaihoc.hotelbooking.dto.response.BranchResponse;
 import com.thaihoc.hotelbooking.entity.Branch;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 
 import java.lang.annotation.Target;
@@ -12,7 +13,8 @@ import java.lang.annotation.Target;
 @Mapper(componentModel = "spring")
 public interface BranchMapper {
     Branch toBranch(BranchCreationRequest request);
-    BranchResponse toBranchResponse(Branch branch);
+    BranchResponse  toBranchResponse(Branch branch);
 
+    @Mapping(target = "status", ignore = true) // không cho update status
     void updateBranch(@MappingTarget Branch branch, BranchUpdateRequest request);
 }

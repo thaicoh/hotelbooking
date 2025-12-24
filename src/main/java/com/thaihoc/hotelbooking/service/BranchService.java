@@ -8,6 +8,7 @@ import com.thaihoc.hotelbooking.dto.response.RoomTypeSummaryResponse;
 import com.thaihoc.hotelbooking.entity.Branch;
 import com.thaihoc.hotelbooking.entity.RoomPhoto;
 import com.thaihoc.hotelbooking.entity.RoomType;
+import com.thaihoc.hotelbooking.enums.BranchStatus;
 import com.thaihoc.hotelbooking.exception.AppException;
 import com.thaihoc.hotelbooking.exception.ErrorCode;
 import com.thaihoc.hotelbooking.mapper.BranchMapper;
@@ -131,7 +132,15 @@ public class BranchService {
                 .build();
     }
 
+    public BranchResponse updateStatus(String id, BranchStatus status) {
+        Branch branch = branchRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND));
 
+        branch.setStatus(status);
+        Branch saved = branchRepository.save(branch);
+
+        return branchMapper.toBranchResponse(saved);
+    }
 
 
 }

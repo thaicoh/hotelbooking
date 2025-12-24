@@ -4,6 +4,7 @@ import com.thaihoc.hotelbooking.dto.request.RoomCreationRequest;
 import com.thaihoc.hotelbooking.dto.request.RoomUpdateRequest;
 import com.thaihoc.hotelbooking.dto.request.StatusUpdateRequest;
 import com.thaihoc.hotelbooking.dto.response.RoomResponse;
+import com.thaihoc.hotelbooking.entity.Branch;
 import com.thaihoc.hotelbooking.entity.Room;
 import com.thaihoc.hotelbooking.entity.RoomType;
 import com.thaihoc.hotelbooking.exception.AppException;
@@ -33,17 +34,22 @@ public class RoomService {
     public RoomResponse createRoom(RoomCreationRequest  roomCreationRequest) {
 
         RoomType roomType = roomTypeRepository.findById(roomCreationRequest.getRoomTypeId())
-                .orElseThrow(() ->  new AppException(ErrorCode.ROOM_TYPE_NOT_FOUND));
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_TYPE_NOT_FOUND));
 
-        if(roomRepository.existsByRoomNumber(roomCreationRequest.getRoomNumber())) throw new AppException(ErrorCode.ROOM_NUMBER_ALREADY_EXISTS);
+        Branch branch = roomType.getBranch();
+
+        // ✅ Kiểm tra trùng số phòng trong cùng Branch
+        if (roomRepository.existsByRoomNumberAndBranch(roomCreationRequest.getRoomNumber(), branch)) {
+            throw new AppException(ErrorCode.ROOM_NUMBER_ALREADY_EXISTS);
+        }
 
         Room room = roomMapper.toRoom(roomCreationRequest);
-
         room.setRoomType(roomType);
 
         Room saved = roomRepository.save(room);
 
-        return  roomMapper.toRoomResponse(saved);
+        return roomMapper.toRoomResponse(saved);
+
     }
 
     public List<RoomResponse> getAll() {

@@ -1,5 +1,6 @@
 package com.thaihoc.hotelbooking.entity;
 
+import com.thaihoc.hotelbooking.enums.BranchStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -62,9 +63,17 @@ public class Branch {/**
     @Column(name = "photo", length = 255)
     private String photoUrl;
 
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private BranchStatus status;
+
     @PrePersist
     public void prePersist() {
         this.createdAt = LocalDateTime.now();
+        if (this.status == null) {
+            this.status = BranchStatus.MAINTENANCE; // mặc định bảo trì
+        }
     }
 
 }

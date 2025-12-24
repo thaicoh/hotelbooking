@@ -97,4 +97,15 @@ public class RoomTypeBookingTypePriceService {
         return "RoomTypeBookingTypePrice deleted successfully";
     }
 
+    public List<RoomTypeBookingTypePriceResponse> findByRoomTypeId(Long roomTypeId) {
+        List<RoomTypeBookingTypePrice> prices = priceRepository.findByRoomType_Id(roomTypeId);
+        if (prices.isEmpty()) {
+            throw new AppException(ErrorCode.ROOM_TYPE_BOOKING_TYPE_PRICE_NOT_FOUND);
+        }
+        return prices.stream()
+                .map(priceMapper::toResponse)
+                .collect(Collectors.toList());
+    }
+
+
 }

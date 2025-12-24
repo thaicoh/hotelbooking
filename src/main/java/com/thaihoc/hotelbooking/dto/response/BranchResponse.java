@@ -1,5 +1,6 @@
 package com.thaihoc.hotelbooking.dto.response;
 
+import com.thaihoc.hotelbooking.enums.BranchStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -26,4 +27,6 @@ public class BranchResponse {
     private String photoUrl;
 
     private LocalDateTime createdAt;
+
+    private BranchStatus status;
 }

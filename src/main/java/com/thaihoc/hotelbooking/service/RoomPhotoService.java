@@ -105,4 +105,108 @@ public class RoomPhotoService {
         return responses;
     }
 
+
+    public RoomPhotoResponse uploadMainPhoto(Long roomTypeId, MultipartFile photo) {
+        // 1. Kiểm tra RoomType tồn tại
+        RoomType roomType = roomTypeRepository.findById(roomTypeId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_TYPE_NOT_FOUND));
+
+        // 2. Kiểm tra đã có ảnh chính chưa
+        boolean existsMain = roomPhotoRepository.existsByRoomTypeIdAndIsMainTrue(roomTypeId);
+        if (existsMain) {
+            throw new AppException(ErrorCode.ROOM_MAIN_PHOTO_ALREADY_EXISTS);
+        }
+
+        // 3. Lưu file vào storage
+        String photoUrl = fileStorageService.store(photo, "rooms/");
+
+        // 4. Tạo entity RoomPhoto
+        RoomPhoto roomPhoto = RoomPhoto.builder()
+                .photoUrl(photoUrl)
+                .roomType(roomType)
+                .isMain(true) // luôn là ảnh chính
+                .build();
+
+        // 5. Lưu DB
+        RoomPhoto saved = roomPhotoRepository.save(roomPhoto);
+
+        // 6. Convert sang response
+        return roomPhotoMapper.toRoomPhotoResponse(saved);
+    }
+
+
+    public RoomPhotoResponse updateMainPhoto(Long roomTypeId, MultipartFile photo) {
+        // 1. Kiểm tra RoomType tồn tại
+        RoomType roomType = roomTypeRepository.findById(roomTypeId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_TYPE_NOT_FOUND));
+
+        // 2. Tìm ảnh chính hiện tại
+        RoomPhoto mainPhoto = roomPhotoRepository.findByRoomTypeIdAndIsMainTrue(roomTypeId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_MAIN_PHOTO_NOT_FOUND));
+
+        // 3. Xóa file cũ
+        fileStorageService.delete(mainPhoto.getPhotoUrl());
+
+        // 4. Lưu file mới
+        String newPhotoUrl = fileStorageService.store(photo, "rooms/");
+
+        // 5. Cập nhật entity
+        mainPhoto.setPhotoUrl(newPhotoUrl);
+
+        RoomPhoto saved = roomPhotoRepository.save(mainPhoto);
+
+        // 6. Convert sang response
+        return roomPhotoMapper.toRoomPhotoResponse(saved);
+    }
+
+    public RoomPhotoResponse updateRoomPhoto(Long photoId, MultipartFile photo) {
+        // 1. Tìm ảnh theo id
+        RoomPhoto roomPhoto = roomPhotoRepository.findById(photoId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_PHOTO_NOT_FOUND));
+
+        // 2. Kiểm tra: nếu là ảnh chính thì báo lỗi
+        if (Boolean.TRUE.equals(roomPhoto.getIsMain())) {
+            throw new AppException(ErrorCode.ROOM_PHOTO_IS_MAIN);
+            // hoặc tạo ErrorCode riêng: "Không thể update ảnh chính bằng API này"
+        }
+
+        // 3. Xóa file cũ
+        fileStorageService.delete(roomPhoto.getPhotoUrl());
+
+        // 4. Lưu file mới
+        String newPhotoUrl = fileStorageService.store(photo, "rooms/");
+
+        // 5. Cập nhật entity
+        roomPhoto.setPhotoUrl(newPhotoUrl);
+
+        RoomPhoto saved = roomPhotoRepository.save(roomPhoto);
+
+        // 6. Convert sang response
+        return roomPhotoMapper.toRoomPhotoResponse(saved);
+    }
+
+
+    public RoomPhotoResponse uploadSubPhoto(Long roomTypeId, MultipartFile photo) {
+        // 1. Kiểm tra RoomType tồn tại
+        RoomType roomType = roomTypeRepository.findById(roomTypeId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_TYPE_NOT_FOUND));
+
+        // 2. Lưu file vào storage
+        String photoUrl = fileStorageService.store(photo, "rooms/");
+
+        // 3. Tạo entity RoomPhoto (luôn là ảnh phụ)
+        RoomPhoto roomPhoto = RoomPhoto.builder()
+                .photoUrl(photoUrl)
+                .roomType(roomType)
+                .isMain(false) // ảnh phụ
+                .build();
+
+        // 4. Lưu DB
+        RoomPhoto saved = roomPhotoRepository.save(roomPhoto);
+
+        // 5. Convert sang response
+        return roomPhotoMapper.toRoomPhotoResponse(saved);
+    }
+
+
 }

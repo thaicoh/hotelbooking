@@ -17,4 +17,7 @@ public interface RoomPhotoRepository extends JpaRepository<RoomPhoto, Long> {
 
     Long countByRoomTypeId(Long roomTypeId);
 
+    boolean existsByRoomTypeIdAndIsMainTrue(Long roomTypeId);
+
+
 }

@@ -2,10 +2,12 @@ package com.thaihoc.hotelbooking.service;
 
 import com.thaihoc.hotelbooking.dto.request.RoomTypeCreationRequest;
 import com.thaihoc.hotelbooking.dto.request.RoomTypeUpdateRequest;
+import com.thaihoc.hotelbooking.dto.response.BranchResponse;
 import com.thaihoc.hotelbooking.dto.response.RoomTypeResponse;
 import com.thaihoc.hotelbooking.dto.response.RoomTypeSummaryResponse;
 import com.thaihoc.hotelbooking.entity.RoomPhoto;
 import com.thaihoc.hotelbooking.entity.RoomType;
+import com.thaihoc.hotelbooking.enums.BranchStatus;
 import com.thaihoc.hotelbooking.exception.AppException;
 import com.thaihoc.hotelbooking.exception.ErrorCode;
 import com.thaihoc.hotelbooking.mapper.BranchMapper;
@@ -39,6 +41,9 @@ public class RoomTypeService {
 
     @Autowired
     RoomPhotoService roomPhotoService;
+
+    @Autowired
+    RoomRepository roomRepository;
 
     @Autowired
     RoomPhotoRepository roomPhotoRepository;
@@ -130,7 +135,7 @@ public class RoomTypeService {
                     .orElse(null);
 
             // Số phòng
-            Long roomCount = roomPhotoRepository.countByRoomTypeId(rt.getId());
+            Long roomCount = roomRepository.countByRoomTypeId(rt.getId());
 
             // Giá thấp nhất
             BigDecimal minPrice = priceRepository.findMinPriceByRoomTypeId(rt.getId());
@@ -146,4 +151,5 @@ public class RoomTypeService {
 
         }).toList();
     }
+
 }

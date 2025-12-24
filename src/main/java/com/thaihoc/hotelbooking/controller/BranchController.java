@@ -8,6 +8,7 @@ import com.thaihoc.hotelbooking.dto.response.PageResponse;
 import com.thaihoc.hotelbooking.dto.response.RoomTypeSummaryResponse;
 import com.thaihoc.hotelbooking.entity.Branch;
 import com.thaihoc.hotelbooking.entity.RoomPhoto;
+import com.thaihoc.hotelbooking.enums.BranchStatus;
 import com.thaihoc.hotelbooking.service.BranchService;
 import com.thaihoc.hotelbooking.service.RoomTypeService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -96,5 +97,14 @@ public class BranchController {
                 .build();
     }
 
+    @PutMapping("/{id}/status")
+    public ApiResponse<BranchResponse> updateBranchStatus(
+            @PathVariable String id,
+            @RequestParam BranchStatus status // truyền trực tiếp enum qua query param hoặc body
+    ) {
+        return ApiResponse.<BranchResponse>builder()
+                .result(branchService.updateStatus(id, status))
+                .build();
+    }
 
 }
