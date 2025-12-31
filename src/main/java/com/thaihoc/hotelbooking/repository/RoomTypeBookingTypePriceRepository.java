@@ -33,4 +33,26 @@ public interface RoomTypeBookingTypePriceRepository extends JpaRepository<RoomTy
     """)
     BigDecimal findMinPriceByRoomTypeId(@Param("roomTypeId") Long roomTypeId);
 
+
+    @Query("""
+        select p
+        from RoomTypeBookingTypePrice p
+            join fetch p.bookingType bt
+            join fetch p.roomType rt
+            join fetch rt.branch b
+        where p.isActive = true
+          and b.status = com.thaihoc.hotelbooking.enums.BranchStatus.ACTIVE
+          and (:bookingTypeCode is null or bt.code = :bookingTypeCode)
+          and (
+                :location is null
+                or lower(b.branchName) like lower(concat('%', :location, '%'))
+                or lower(b.address) like lower(concat('%', :location, '%'))
+          )
+    """)
+    List<RoomTypeBookingTypePrice> searchCandidates(
+            @Param("bookingTypeCode") String bookingTypeCode,
+            @Param("location") String location
+    );
+
+
 }

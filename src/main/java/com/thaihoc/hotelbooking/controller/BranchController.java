@@ -2,20 +2,21 @@ package com.thaihoc.hotelbooking.controller;
 
 import com.thaihoc.hotelbooking.dto.request.BranchCreationRequest;
 import com.thaihoc.hotelbooking.dto.request.BranchUpdateRequest;
-import com.thaihoc.hotelbooking.dto.response.ApiResponse;
-import com.thaihoc.hotelbooking.dto.response.BranchResponse;
-import com.thaihoc.hotelbooking.dto.response.PageResponse;
-import com.thaihoc.hotelbooking.dto.response.RoomTypeSummaryResponse;
+import com.thaihoc.hotelbooking.dto.request.HotelSearchRequest;
+import com.thaihoc.hotelbooking.dto.response.*;
 import com.thaihoc.hotelbooking.entity.Branch;
 import com.thaihoc.hotelbooking.entity.RoomPhoto;
 import com.thaihoc.hotelbooking.enums.BranchStatus;
 import com.thaihoc.hotelbooking.service.BranchService;
 import com.thaihoc.hotelbooking.service.RoomTypeService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -106,5 +107,46 @@ public class BranchController {
                 .result(branchService.updateStatus(id, status))
                 .build();
     }
+
+    @GetMapping("/search-hotels")
+    public ApiResponse<List<BranchMinPriceResponse>> searchHotels(
+            @RequestParam(required = false) String bookingTypeCode,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime checkIn,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime checkOut,
+
+            @RequestParam(required = false) Integer hours,
+
+            @RequestParam(required = false) String location,
+            @RequestParam(required = false) BigDecimal   minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice
+    ) {
+        return ApiResponse.<List<BranchMinPriceResponse>>builder()
+                .result(branchService.searchHotels(
+                        bookingTypeCode, checkIn, checkOut, hours, location, minPrice, maxPrice
+                ))
+                .build();
+    }
+
+    @PostMapping("/search-hotels")
+    public ApiResponse<List<BranchMinPriceResponse>> searchHotels(@RequestBody HotelSearchRequest req) {
+        return ApiResponse.<List<BranchMinPriceResponse>>builder()
+                .result(branchService.searchHotels(
+                        req.getBookingTypeCode(),
+                        req.getCheckIn(),
+                        req.getCheckOut(),
+                        req.getHours(),
+                        req.getLocation(),
+                        req.getMinPrice(),
+                        req.getMaxPrice()
+                ))
+                .build();
+    }
+
 
 }

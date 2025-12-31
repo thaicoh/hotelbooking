@@ -54,8 +54,10 @@ public class RoomTypeService {
 
     public RoomTypeResponse create(RoomTypeCreationRequest request) {
 
-        if (roomTypeRepository.existsByTypeName(request.getTypeName()))
+        // chỉ check trong cùng branch
+        if (roomTypeRepository.existsByTypeNameAndBranchId(request.getTypeName(), request.getBranchId())) {
             throw new AppException(ErrorCode.ROOM_TYPE_NAME_ALREADY_EXISTS);
+        }
 
         if (!branchRepository.existsById(request.getBranchId())) throw new AppException(ErrorCode.BRANCH_NOT_FOUND);
 

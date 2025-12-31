@@ -13,6 +13,6 @@ public interface RoomTypeRepository extends JpaRepository<RoomType, Long> {
     boolean existsByTypeName(String typeName);
 
     List<RoomType> findByBranchId(String branchId);
-
+    boolean existsByTypeNameAndBranchId(String typeName, String branchId);
 
 }
