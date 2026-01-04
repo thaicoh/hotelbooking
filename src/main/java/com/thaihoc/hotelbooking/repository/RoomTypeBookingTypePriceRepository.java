@@ -54,5 +54,19 @@ public interface RoomTypeBookingTypePriceRepository extends JpaRepository<RoomTy
             @Param("location") String location
     );
 
+    @Query("""
+        select p
+        from RoomTypeBookingTypePrice p
+            join fetch p.bookingType bt
+        where p.roomType.id = :roomTypeId
+          and bt.code = :bookingTypeCode
+          and p.isActive = true
+    """)
+    Optional<RoomTypeBookingTypePrice> findByRoomTypeIdAndBookingTypeCode(
+            @Param("roomTypeId") Long roomTypeId,
+            @Param("bookingTypeCode") String bookingTypeCode
+    );
+
+
 
 }

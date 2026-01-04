@@ -13,4 +13,10 @@ public class AppException extends RuntimeException {
         super(errorCode.getMessage());
         this.errorCode = errorCode;
     }
+    // Constructor tuỳ chọn: nhận ErrorCode + message riêng
+    public AppException(ErrorCode errorCode, String message) {
+        super(message != null ? message : errorCode.getMessage());
+        this.errorCode = errorCode;
+    }
+
 }

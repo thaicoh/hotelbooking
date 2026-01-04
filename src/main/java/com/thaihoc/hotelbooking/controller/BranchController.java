@@ -2,6 +2,7 @@ package com.thaihoc.hotelbooking.controller;
 
 import com.thaihoc.hotelbooking.dto.request.BranchCreationRequest;
 import com.thaihoc.hotelbooking.dto.request.BranchUpdateRequest;
+import com.thaihoc.hotelbooking.dto.request.HotelDetailRequest;
 import com.thaihoc.hotelbooking.dto.request.HotelSearchRequest;
 import com.thaihoc.hotelbooking.dto.response.*;
 import com.thaihoc.hotelbooking.entity.Branch;
@@ -138,12 +139,30 @@ public class BranchController {
         return ApiResponse.<List<BranchMinPriceResponse>>builder()
                 .result(branchService.searchHotels(
                         req.getBookingTypeCode(),
+
                         req.getCheckIn(),
                         req.getCheckOut(),
                         req.getHours(),
                         req.getLocation(),
                         req.getMinPrice(),
                         req.getMaxPrice()
+                ))
+                .build();
+    }
+
+
+    @PostMapping("/{branchId}/hotel-detail")
+    public ApiResponse<BranchDetailResponse> getHotelDetail(
+            @PathVariable String branchId,
+            @RequestBody HotelDetailRequest req
+    ) {
+        return ApiResponse.<BranchDetailResponse>builder()
+                .result(branchService.getHotelDetail(
+                        branchId,
+                        req.getBookingTypeCode(),
+                        req.getCheckIn(),
+                        req.getCheckOut(),
+                        req.getHours()
                 ))
                 .build();
     }

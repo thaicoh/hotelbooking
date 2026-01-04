@@ -41,5 +41,24 @@ public class RoomAvailabilityService {
 
     }
 
+    public int countAvailableRooms(Long roomTypeId, LocalDateTime checkIn, LocalDateTime checkOut) {
+        // Tổng số phòng của loại này
+        int totalRooms = roomRepository.countByRoomType_Id(roomTypeId);
+
+        // Số booking đã chiếm phòng trong khoảng thời gian
+        int occupiedBookings = bookingRepository.countActiveBookingsByRoomTypeAndDateRange(
+                roomTypeId,
+                List.of("CONFIRMED", "RESERVED", "PENDING"),
+                checkIn,
+                checkOut
+        );
+
+        int availableRooms = totalRooms - occupiedBookings;
+        log.info("Count available rooms: roomTypeId={}, totalRooms={}, occupiedBookings={}, availableRooms={}",
+                roomTypeId, totalRooms, occupiedBookings, availableRooms);
+
+        return Math.max(availableRooms, 0);
+    }
+
 
 }

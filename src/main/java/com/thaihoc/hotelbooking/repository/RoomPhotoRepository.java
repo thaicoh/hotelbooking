@@ -19,5 +19,4 @@ public interface RoomPhotoRepository extends JpaRepository<RoomPhoto, Long> {
 
     boolean existsByRoomTypeIdAndIsMainTrue(Long roomTypeId);
 
-
 }
