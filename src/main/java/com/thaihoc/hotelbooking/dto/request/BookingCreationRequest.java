@@ -14,22 +14,23 @@ import java.time.LocalDateTime;
 @Builder
 public class BookingCreationRequest {
 
-    private Long roomTypeId;        // Loại phòng (hệ thống sẽ tự chọn room cụ thể)
+    private Long roomTypeId;        // ID loại phòng
 
-    private String bookingTypeCode; // NIGHT, DAY, HOURLY
+    private String bookingTypeCode; // HOUR / NIGHT / DAY
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime checkInDate;   // Ngày giờ check-in
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
-    private LocalDateTime checkOutDate;  // Ngày giờ check-out
+    private LocalDateTime checkOutDate;  // Ngày giờ check-out (có thể null nếu theo giờ)
 
-    private Integer numberOfGuests; // Số lượng khách
+    private Integer hours;           // số giờ (nếu đặt theo giờ)
 
-    private String specialRequests; // Yêu cầu đặc biệt
+    private Integer numberOfGuests;  // Số lượng khách
 
-    private String bookingSource;   // WEB, APP, RECEPTION
+    private String specialRequests;  // Yêu cầu đặc biệt
 
-    private String paymentMethod;   // PAY_AT_HOTEL hoặc ONLINE
+    private String bookingSource;    // WEB, APP, RECEPTION
+
+    private String paymentMethod;    // PAY_AT_HOTEL hoặc ONLINE
 }
-

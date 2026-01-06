@@ -18,12 +18,15 @@ public class BookingController {
     @Autowired
     private BookingService bookingService;
 
+    // API tạo booking
     @PostMapping
-    public ApiResponse<BookingResponse> createBooking(@RequestBody BookingCreationRequest request){
+    @PreAuthorize("hasAuthority('SCOPE_ROLE_CUSTOMER')")
+    public ApiResponse<BookingResponse> createBooking(@RequestBody BookingCreationRequest request) {
         return ApiResponse.<BookingResponse>builder()
                 .result(bookingService.createBooking(request))
                 .build();
     }
+
 
 
     @GetMapping("/admin/bookings")

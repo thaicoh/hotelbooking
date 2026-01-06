@@ -39,7 +39,7 @@ public class SecurityConfig {
     @Autowired
     private UserStatusFilter userStatusFilter;
 
-    private final String [] PUBLIC_ENDPOINTS = {"/users","/auth","/auth/**",};
+    private final String [] PUBLIC_ENDPOINTS = {"/users","/auth","/auth/**","/branch/search-hotels", "/branch/*/hotel-detail"};
 
     private final String [] PUBLIC_TEST_ENDPOINTS = {"/room_type" ,
 

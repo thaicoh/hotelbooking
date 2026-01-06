@@ -9,6 +9,8 @@ import com.thaihoc.hotelbooking.exception.AppException;
 import com.thaihoc.hotelbooking.exception.ErrorCode;
 import com.thaihoc.hotelbooking.mapper.BookingMapper;
 import com.thaihoc.hotelbooking.repository.*;
+import com.thaihoc.hotelbooking.util.BookingTimeUtil;
+import com.thaihoc.hotelbooking.util.PriceCalculatorUtil;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -60,38 +62,46 @@ public class BookingService {
 
     @PreAuthorize("hasAuthority('SCOPE_ROLE_CUSTOMER')")
     public BookingResponse createBooking(BookingCreationRequest request) {
-
-        log.info("Create booking request: roomTypeCode={}, bookingTypeId={}, checkIn={}, checkOut={}, paymentMethod={}",
+        log.info("Create booking request: roomTypeId={}, bookingTypeCode={}, checkIn={}, checkOut={}, paymentMethod={}",
                 request.getRoomTypeId(), request.getBookingTypeCode(),
                 request.getCheckInDate(), request.getCheckOutDate(),
                 request.getPaymentMethod());
 
-
+        // 👉 Lấy user từ token
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String email = authentication.getName();
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
+        // 👉 Lấy roomType
         RoomType roomType = roomTypeRepository.findById(request.getRoomTypeId())
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_TYPE_NOT_FOUND));
 
+        // 👉 Lấy bookingType
         BookingType bookingType = bookingTypeRepository.findByCode(request.getBookingTypeCode())
                 .orElseThrow(() -> new AppException(ErrorCode.BOOKING_TYPE_NOT_FOUND));
 
-        validateBooking(request, bookingType);
+        // 👉 Chuẩn hóa checkOut nếu chỉ có checkIn + hours
+        LocalDateTime normalizedCheckIn = request.getCheckInDate();
+        LocalDateTime normalizedCheckOut = request.getCheckOutDate();
+        if (normalizedCheckIn != null && normalizedCheckOut == null && request.getHours() != null && request.getHours() > 0) {
+            normalizedCheckOut = normalizedCheckIn.plusHours(request.getHours());
+        }
 
-        // ✅ Kiểm tra phòng trống trước khi tạo booking
+        // 👉 Validate thời gian
+        if (normalizedCheckIn != null && normalizedCheckOut != null) {
+            BookingTimeUtil.validateBookingTime(normalizedCheckIn, normalizedCheckOut, bookingType);
+        }
+
+        // 👉 Kiểm tra phòng trống
         boolean available = roomAvailabilityService.isRoomTypeAvailable(
-                request.getRoomTypeId(),
-                request.getCheckInDate(),
-                request.getCheckOutDate()
-        );
-
+                request.getRoomTypeId(), normalizedCheckIn, normalizedCheckOut);
         if (!available) {
             throw new AppException(ErrorCode.BOOKING_ROOM_NOT_AVAILABLE);
         }
 
-        RoomTypeBookingTypePrice priceConfig = roomTypeBookingTypePriceRepository
+        // 👉 Lấy config giá
+        RoomTypeBookingTypePrice priceCfg = roomTypeBookingTypePriceRepository
                 .findByRoomType_IdAndBookingType_IdAndIsActive(
                         request.getRoomTypeId(),
                         bookingType.getId(),
@@ -99,22 +109,29 @@ public class BookingService {
                 )
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_TYPE_BOOKING_TYPE_PRICE_NOT_FOUND));
 
-        // Tính tồng tiền
-        BigDecimal totalPrice = calculateTotalPrice(priceConfig, request.getCheckInDate(), request.getCheckOutDate(), bookingType);
+        // 👉 Tính giá
+        BigDecimal totalPrice = PriceCalculatorUtil.computeSearchPrice(
+                priceCfg,
+                bookingType,
+                normalizedCheckIn,
+                normalizedCheckOut,
+                request.getHours()
+        );
 
-        // Dùng mapper để convert request -> entity
+        // 👉 Convert request -> entity
         Booking booking = bookingMapper.toEntity(request);
-
         booking.setUser(user);
         booking.setRoomType(roomType);
-        booking.setBookingType(priceConfig.getBookingType());
+        booking.setBookingType(priceCfg.getBookingType());
         booking.setTotalPrice(totalPrice);
         booking.setIsPaid(false);
         booking.setCreatedAt(LocalDateTime.now());
         booking.setCreatedBy(user.getFullName());
         booking.setBookingReference(UUID.randomUUID().toString());
+        booking.setCheckInDate(normalizedCheckIn);
+        booking.setCheckOutDate(normalizedCheckOut);
 
-        // ✅ Phân nhánh theo phương thức thanh toán
+        // 👉 Phân nhánh theo paymentMethod
         if ("PAY_AT_HOTEL".equalsIgnoreCase(request.getPaymentMethod())) {
             booking.setStatus("RESERVED");
         } else if ("ONLINE".equalsIgnoreCase(request.getPaymentMethod())) {
@@ -122,16 +139,19 @@ public class BookingService {
         } else {
             throw new AppException(ErrorCode.BOOKING_PAYMENT_METHOD_INVALID);
         }
+
+        bookingRepository.save(booking);
+
         log.info("Booking created: bookingReference={}, status={}, totalPrice={}, user={}",
                 booking.getBookingReference(), booking.getStatus(),
                 booking.getTotalPrice(), booking.getUser().getEmail());
 
-
-
-        bookingRepository.save(booking);
-
         return bookingMapper.toResponse(booking);
     }
+
+
+
+
 
     public PageResponse<BookingListItemResponse> getAllBookings(
             int page,
@@ -310,7 +330,5 @@ public class BookingService {
             }
         }
     }
-
-
 
 }

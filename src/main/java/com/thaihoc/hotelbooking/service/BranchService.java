@@ -184,40 +184,57 @@ public class BranchService {
             BookingType bt = priceCfg.getBookingType();
             Branch branch = priceCfg.getRoomType().getBranch();
 
+            System.out.println("Candidate: branch=" + branch.getBranchName()
+                    + ", roomType=" + priceCfg.getRoomType().getTypeName()
+                    + ", bookingType=" + bt.getCode()
+                    + ", basePrice=" + priceCfg.getPrice());
+
             // 3.1) Nếu có checkIn/checkOut => validate theo bookingType tương ứng
             if (normalizedCheckIn != null && normalizedCheckOut != null) {
-                BookingTimeUtil.validateBookingTime(normalizedCheckIn, normalizedCheckOut, bt);
 
-                // nếu có hours thì check khớp (optional)
+                BookingTimeUtil.validateBookingTime(normalizedCheckIn, normalizedCheckOut, bt);
+                System.out.println("BookingTime valid for " + bt.getCode());
+
                 if ("HOUR".equals(bookingTypeCode) && hours != null) {
                     long diffHours = ChronoUnit.HOURS.between(normalizedCheckIn, normalizedCheckOut);
                     if (diffHours != hours.longValue()) {
-                        throw new AppException(ErrorCode.BOOKING_DATE_INVALID,
-                                "Số giờ truyền vào (" + hours + ") không khớp với khoảng thời gian thực tế (" + diffHours + ").");
+                        System.out.println("Hours mismatch: expected=" + hours + ", actual=" + diffHours);
+                        continue;
                     }
                 }
 
-                // 3.2) Check availability theo roomType
                 boolean available = roomAvailabilityService.isRoomTypeAvailable(
                         priceCfg.getRoomType().getId(),
                         normalizedCheckIn,
                         normalizedCheckOut
                 );
+                System.out.println("Availability for roomType " + priceCfg.getRoomType().getId() + ": " + available);
                 if (!available) continue;
             }
 
             // 3.3) Tính giá cho config này
             BigDecimal computedPrice = PriceCalculatorUtil.computeSearchPrice(priceCfg, bt, normalizedCheckIn, normalizedCheckOut, hours);
+            System.out.println("Computed price: " + computedPrice);
 
-            if (computedPrice == null) continue;
+            if (computedPrice == null) {
+                System.out.println("Computed price is null, skip.");
+                continue;
+            }
 
             // 3.4) Lọc khoảng giá (optional)
-            if (minPrice != null && computedPrice.compareTo(minPrice) < 0) continue;
-            if (maxPrice != null && computedPrice.compareTo(maxPrice) > 0) continue;
+            if (minPrice != null && computedPrice.compareTo(minPrice) < 0) {
+                System.out.println("Price " + computedPrice + " < minPrice " + minPrice + ", skip.");
+                continue;
+            }
+            if (maxPrice != null && computedPrice.compareTo(maxPrice) > 0) {
+                System.out.println("Price " + computedPrice + " > maxPrice " + maxPrice + ", skip.");
+                continue;
+            }
 
             // 3.5) Cập nhật min theo branch
             BranchMinPriceResponse currentBest = bestByBranch.get(branch.getId());
             if (currentBest == null || computedPrice.compareTo(currentBest.getMinPrice()) < 0) {
+                System.out.println("Update best price for branch " + branch.getBranchName() + ": " + computedPrice);
                 bestByBranch.put(branch.getId(),
                         BranchMinPriceResponse.builder()
                                 .branchId(branch.getId())
