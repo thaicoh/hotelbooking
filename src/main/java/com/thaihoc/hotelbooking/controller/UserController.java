@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import org.hibernate.query.Page;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
@@ -72,5 +73,15 @@ public class UserController {
                 .result(userService.updateStatus(email, request.getStatus()))
                 .build();
     }
+
+
+    @GetMapping("/me")
+    public ApiResponse<UserResponse> getMyInfo() {
+        return ApiResponse.<UserResponse>builder()
+                .result(userService.getMyInfo())
+                .build();
+    }
+
+
 
 }

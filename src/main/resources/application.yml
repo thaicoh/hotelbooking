@@ -44,3 +44,11 @@ jwt:
   signerKey: ${JWT_SIGNERKEY}
   valid-duration: 18000
   refreshable-duration: 43200
+
+vnpay:
+  tmnCode: 1FURF690
+  hashSecret: KTFKXYF7KRFE9A7NY9D4CST8QE428O02
+  payUrl: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+  returnUrl: https://thaicoh.github.io/hotel-booking-frontend/checkout
+  ipnUrl: https://panatrophic-tamesha-ripe.ngrok-free.dev/hotel-booking/api/vnpay/ipn
+

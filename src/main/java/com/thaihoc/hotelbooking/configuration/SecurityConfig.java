@@ -55,6 +55,7 @@ public class SecurityConfig {
                 requests.requestMatchers(HttpMethod.POST, PUBLIC_ENDPOINTS).permitAll()
                         .requestMatchers(HttpMethod.GET, "/branches/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/rooms/**").permitAll()
+                        .requestMatchers("/api/vnpay/**").permitAll()
 
                         .requestMatchers(HttpMethod.GET, PUBLIC_TEST_ENDPOINTS).permitAll()
                         .requestMatchers(HttpMethod.POST, PUBLIC_TEST_ENDPOINTS).permitAll()

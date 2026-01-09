@@ -1,5 +1,6 @@
 package com.thaihoc.hotelbooking.entity;
 
+import com.thaihoc.hotelbooking.enums.BookingStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -38,8 +39,9 @@ public class Booking {
     @Column(name = "total_price", nullable = false)
     private BigDecimal totalPrice;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 50)
-    private String status;
+    private BookingStatus status;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -73,5 +75,8 @@ public class Booking {
 
     @Column(name = "number_of_guests")
     private Integer numberOfGuests;
+
+    @Column(name = "expire_at")
+    private LocalDateTime expireAt;
 
 }

@@ -38,5 +38,9 @@ public class BookingResponse {
 
     private String specialRequests;
     private Integer numberOfGuests;
+
+
+    private String paymentUrl;
+
 }
 

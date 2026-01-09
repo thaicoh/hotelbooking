@@ -5,12 +5,14 @@ import com.thaihoc.hotelbooking.dto.response.BookingListItemResponse;
 import com.thaihoc.hotelbooking.dto.response.BookingResponse;
 import com.thaihoc.hotelbooking.dto.response.PageResponse;
 import com.thaihoc.hotelbooking.entity.*;
+import com.thaihoc.hotelbooking.enums.BookingStatus;
 import com.thaihoc.hotelbooking.exception.AppException;
 import com.thaihoc.hotelbooking.exception.ErrorCode;
 import com.thaihoc.hotelbooking.mapper.BookingMapper;
 import com.thaihoc.hotelbooking.repository.*;
 import com.thaihoc.hotelbooking.util.BookingTimeUtil;
 import com.thaihoc.hotelbooking.util.PriceCalculatorUtil;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -59,13 +61,17 @@ public class BookingService {
     @Autowired
     private PaymentRepository paymentRepository;
 
+    @Autowired
+    private VnPayService vnPayService;
+
+
 
     @PreAuthorize("hasAuthority('SCOPE_ROLE_CUSTOMER')")
-    public BookingResponse createBooking(BookingCreationRequest request) {
+    public BookingResponse createBooking(BookingCreationRequest request, HttpServletRequest http) {
         log.info("Create booking request: roomTypeId={}, bookingTypeCode={}, checkIn={}, checkOut={}, paymentMethod={}",
                 request.getRoomTypeId(), request.getBookingTypeCode(),
                 request.getCheckInDate(), request.getCheckOutDate(),
-                request.getPaymentMethod());
+                    request.getPaymentMethod());
 
         // 👉 Lấy user từ token
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -133,9 +139,12 @@ public class BookingService {
 
         // 👉 Phân nhánh theo paymentMethod
         if ("PAY_AT_HOTEL".equalsIgnoreCase(request.getPaymentMethod())) {
-            booking.setStatus("RESERVED");
+            booking.setStatus(BookingStatus.RESERVED);
         } else if ("ONLINE".equalsIgnoreCase(request.getPaymentMethod())) {
-            booking.setStatus("PENDING");
+            booking.setStatus(BookingStatus.PENDING);
+            // ⏰ Set thời gian hết hạn
+            booking.setExpireAt(LocalDateTime.now().plusMinutes(5));
+
         } else {
             throw new AppException(ErrorCode.BOOKING_PAYMENT_METHOD_INVALID);
         }
@@ -146,8 +155,42 @@ public class BookingService {
                 booking.getBookingReference(), booking.getStatus(),
                 booking.getTotalPrice(), booking.getUser().getEmail());
 
-        return bookingMapper.toResponse(booking);
+        BookingResponse res = bookingMapper.toResponse(booking);
+
+        if ("ONLINE".equalsIgnoreCase(request.getPaymentMethod())) {
+            String ipAddr = getClientIp(http);
+
+            // vnp_TxnRef: dùng bookingReference để map IPN/Return về đúng booking
+            String paymentUrl = vnPayService.createPaymentUrl(
+                    booking.getTotalPrice().longValue(),                       // amount VND
+                    "Thanh toan booking " + booking.getBookingReference(),     // orderInfo
+                    ipAddr,
+                    booking.getBookingReference()                              // txnRef
+            );
+
+            res.setPaymentUrl(paymentUrl);
+
+            // (OPTIONAL) nếu bạn muốn lưu Payment record ngay lúc tạo link:
+            // Payment p = new Payment();
+            // p.setBooking(booking);
+            // p.setPaymentMethod("VNPAY");
+            // p.setPaymentStatus("PENDING");
+            // p.setTxnRef(booking.getBookingReference());
+            // p.setAmount(booking.getTotalPrice());
+            // p.setPaymentDate(LocalDateTime.now());
+            // paymentRepository.save(p);
+        }
+
+        return res;
+
     }
+
+    private String getClientIp(HttpServletRequest request) {
+        String xf = request.getHeader("X-Forwarded-For");
+        if (xf != null && !xf.isBlank()) return xf.split(",")[0].trim();
+        return request.getRemoteAddr();
+    }
+
 
 
 
@@ -186,7 +229,7 @@ public class BookingService {
                     .checkOutDate(booking.getCheckOutDate())
                     .totalPrice(booking.getTotalPrice())
                     .currency("VND") // hoặc lấy từ price config
-                    .status(booking.getStatus())
+                    .status(booking.getStatus().toString())
                     .isPaid(booking.getIsPaid())
                     .paymentStatus(latestPayment != null ? latestPayment.getPaymentStatus() : null)
                     .createdAt(booking.getCreatedAt())
@@ -203,132 +246,41 @@ public class BookingService {
     }
 
 
-    private BigDecimal calculateTotalPrice(RoomTypeBookingTypePrice priceConfig,
-                                           LocalDateTime checkIn, LocalDateTime checkOut,
-                                           BookingType bookingType) {
+    @PreAuthorize("hasAuthority('SCOPE_ROLE_CUSTOMER')")
+    public List<BookingListItemResponse> getMyBookings() {
+        // 👉 Lấy user từ token
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String email = authentication.getName();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        // Kiểm tra ngày giờ nhập vào có hợp lệ không
-        long days = ChronoUnit.DAYS.between(checkIn, checkOut);
-        long hours = ChronoUnit.HOURS.between(checkIn, checkOut);
+        // 👉 Lấy tất cả booking của user này
+        List<Booking> bookings = bookingRepository.findByUser(user);
 
-        if (days < 0 || (days == 0 && hours <= 0)) {
-            throw new AppException(ErrorCode.BOOKING_DATE_INVALID);
-        }
+        // 👉 Convert sang response
+        return bookings.stream().map(booking -> {
+            Payment latestPayment = paymentRepository
+                    .findTopByBookingOrderByPaymentDateDesc(booking)
+                    .orElse(null);
 
-        BigDecimal totalPrice = BigDecimal.ZERO;
-        BigDecimal basePrice = priceConfig.getPrice();  // Giá phòng cơ bản
-
-        // Kiểm tra loại booking (theo ngày, theo giờ, theo đêm)
-        if ("DAY".equals(bookingType.getCode())) {
-
-            LocalTime requiredCheckIn = bookingType.getDefaultCheckInTime();
-            LocalTime requiredCheckOut = bookingType.getDefaultCheckOutTime();
-
-            // 1. Validate giờ check-in phải khớp 100%
-            if (!checkIn.toLocalTime().equals(requiredCheckIn)) {
-                throw new AppException(ErrorCode.BOOKING_DATE_INVALID);
-            }
-
-            // 2. Validate giờ check-out phải khớp 100%
-            if (!checkOut.toLocalTime().equals(requiredCheckOut)) {
-                throw new AppException(ErrorCode.BOOKING_DATE_INVALID);
-            }
-
-            // 3. Ngày checkout phải sau ngày checkin
-            if (!checkOut.toLocalDate().isAfter(checkIn.toLocalDate())) {
-                throw new AppException(ErrorCode.BOOKING_DATE_INVALID);
-            }
-
-            // 4. Tính số ngày theo start inclusive – end exclusive
-            LocalDate start = checkIn.toLocalDate();
-            LocalDate endExclusive = checkOut.toLocalDate();
-
-            LocalDate current = start;
-            while (current.isBefore(endExclusive)) {
-                BigDecimal daily = basePrice;
-
-                // phụ phí cuối tuần
-                if (current.getDayOfWeek() == DayOfWeek.SATURDAY ||
-                        current.getDayOfWeek() == DayOfWeek.SUNDAY) {
-                    daily = daily.add(priceConfig.getWeekendSurcharge());
-                }
-
-                totalPrice = totalPrice.add(daily);
-                current = current.plusDays(1);
-            }
-
-            return totalPrice;
-
-        } else if (bookingType.getCode().equals("NIGHT")) {
-            // Nếu là phòng đêm, tính giá cho 1 đêm
-            totalPrice = basePrice;
-
-            // Phụ phí cuối tuần (nếu có)
-            if (checkIn.getDayOfWeek() == DayOfWeek.SATURDAY || checkIn.getDayOfWeek() == DayOfWeek.SUNDAY) {
-                totalPrice = totalPrice.add(priceConfig.getWeekendSurcharge());
-            }
-        } else if (bookingType.getCode().equals("HOUR")) {
-            // Nếu là phòng theo giờ, tính theo số giờ
-            if (hours > 5) {
-                throw new RuntimeException("Booking duration exceeds maximum allowed hours for hourly bookings.");
-            }
-
-            // Giá cho giờ đầu tiên (sử dụng basePrice đã cộng phụ phí cuối tuần nếu có)
-            totalPrice = basePrice;
-
-            // Phụ phí cuối tuần (nếu có) chỉ cộng vào giá cơ bản
-            if (checkIn.getDayOfWeek() == DayOfWeek.SATURDAY || checkIn.getDayOfWeek() == DayOfWeek.SUNDAY) {
-                totalPrice = totalPrice.add(priceConfig.getWeekendSurcharge());
-            }
-
-            // Tính giá cho các giờ tiếp theo (sử dụng additionalHourPrice)
-            if (hours > 1) {
-                long additionalHours = hours - 1; // Tính các giờ vượt quá
-                totalPrice = totalPrice.add(priceConfig.getAdditionalHourPrice().multiply(BigDecimal.valueOf(additionalHours)));
-            }
-
-        }
-
-        // Trả về tổng giá tiền
-        return totalPrice;
-    }
-
-    private void validateBooking(BookingCreationRequest request, BookingType bookingType) {
-        // Kiểm tra check-out không được trước thời điểm hiện tại
-        if (request.getCheckOutDate().isBefore(LocalDateTime.now())) {
-            throw new AppException(ErrorCode.BOOKING_DATE_INVALID);
-        }
-
-        // Kiểm tra loại phòng và validate theo từng loại booking
-        if (bookingType.getCode().equals("HOUR")) {
-            // Kiểm tra phòng giờ: check-in và check-out phải nằm trong khoảng thời gian default check-in và check-out
-            if (request.getCheckInDate().getHour() < bookingType.getDefaultCheckInTime().getHour() ||
-                    request.getCheckInDate().getHour() > bookingType.getDefaultCheckOutTime().getHour()) {
-                throw new AppException(ErrorCode.BOOKING_DATE_INVALID);
-            }
-
-            // Kiểm tra phòng giờ không quá 5 giờ
-            long hours = ChronoUnit.HOURS.between(request.getCheckInDate(), request.getCheckOutDate());
-            if (hours > 5) {
-                throw new AppException(ErrorCode.BOOKING_DATE_INVALID);
-            }
-
-        } else if (bookingType.getCode().equals("NIGHT")) {
-            // Kiểm tra phòng đêm: check-in phải từ 21h và check-out phải trước 12h trưa hôm sau
-            if (request.getCheckInDate().getHour() < 21 || request.getCheckOutDate().getHour() != 12) {
-                throw new AppException(ErrorCode.BOOKING_DATE_INVALID );
-            }
-        } else if (bookingType.getCode().equals("DAY")) {
-            // Kiểm tra phòng ngày: check-in phải lúc 14h và check-out phải trước 12h trưa
-            if (request.getCheckInDate().getHour() != 14 || request.getCheckOutDate().getHour() != 12) {
-                throw new AppException(ErrorCode.BOOKING_DATE_INVALID);
-            }
-
-            // Kiểm tra ngày checkout không được trước ngày checkin
-            if (request.getCheckOutDate().isBefore(request.getCheckInDate())) {
-                throw new AppException(ErrorCode.BOOKING_DATE_INVALID);
-            }
-        }
+            return BookingListItemResponse.builder()
+                    .bookingId(booking.getBookingId())
+                    .bookingReference(booking.getBookingReference())
+                    .customerName(booking.getUser().getFullName())
+                    .customerPhone(booking.getUser().getPhone())
+                    .branchName(booking.getRoomType().getBranch().getBranchName())
+                    .roomTypeName(booking.getRoomType().getTypeName())
+                    .bookingTypeName(booking.getBookingType().getName())
+                    .checkInDate(booking.getCheckInDate())
+                    .checkOutDate(booking.getCheckOutDate())
+                    .totalPrice(booking.getTotalPrice())
+                    .currency("VND") // hoặc lấy từ price config
+                    .status(booking.getStatus().toString())
+                    .isPaid(booking.getIsPaid())
+                    .paymentStatus(latestPayment != null ? latestPayment.getPaymentStatus() : null)
+                    .createdAt(booking.getCreatedAt())
+                    .build();
+        }).toList();
     }
 
 }

@@ -1,6 +1,7 @@
 package com.thaihoc.hotelbooking.service;
 
 import com.thaihoc.hotelbooking.entity.Room;
+import com.thaihoc.hotelbooking.enums.BookingStatus;
 import com.thaihoc.hotelbooking.repository.BookingRepository;
 import com.thaihoc.hotelbooking.repository.RoomRepository;
 import lombok.extern.log4j.Log4j2;
@@ -20,35 +21,37 @@ public class RoomAvailabilityService {
     @Autowired
     private BookingRepository bookingRepository;
 
-    public boolean isRoomTypeAvailable(Long roomTypeId, LocalDateTime checkIn, LocalDateTime checkOut) {
+    private static final List<BookingStatus> ACTIVE_STATUSES = List.of(
+            BookingStatus.PENDING,
+            BookingStatus.RESERVED,
+            BookingStatus.CONFIRMED,
+            BookingStatus.PAID,
+            BookingStatus.CHECKED_IN
+    );
 
-        // Tổng số phòng của loại này
+
+    public boolean isRoomTypeAvailable(Long roomTypeId, LocalDateTime checkIn, LocalDateTime checkOut) {
         int totalRooms = roomRepository.countByRoomType_Id(roomTypeId);
 
-        // Số booking đã chiếm phòng trong khoảng thời gian
         int occupiedBookings = bookingRepository.countActiveBookingsByRoomTypeAndDateRange(
                 roomTypeId,
-                List.of("CONFIRMED", "RESERVED", "PENDING"),
+                ACTIVE_STATUSES,
                 checkIn,
                 checkOut
         );
 
-        // ✅ Log chi tiết để kiểm tra
         log.info("Check availability: roomTypeId={}, checkIn={}, checkOut={}, totalRooms={}, occupiedBookings={}",
                 roomTypeId, checkIn, checkOut, totalRooms, occupiedBookings);
 
         return occupiedBookings < totalRooms;
-
     }
 
     public int countAvailableRooms(Long roomTypeId, LocalDateTime checkIn, LocalDateTime checkOut) {
-        // Tổng số phòng của loại này
         int totalRooms = roomRepository.countByRoomType_Id(roomTypeId);
 
-        // Số booking đã chiếm phòng trong khoảng thời gian
         int occupiedBookings = bookingRepository.countActiveBookingsByRoomTypeAndDateRange(
                 roomTypeId,
-                List.of("CONFIRMED", "RESERVED", "PENDING"),
+                ACTIVE_STATUSES,
                 checkIn,
                 checkOut
         );
@@ -59,6 +62,5 @@ public class RoomAvailabilityService {
 
         return Math.max(availableRooms, 0);
     }
-
-
 }
+

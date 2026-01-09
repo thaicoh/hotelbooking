@@ -6,11 +6,13 @@ import com.thaihoc.hotelbooking.dto.response.BookingListItemResponse;
 import com.thaihoc.hotelbooking.dto.response.BookingResponse;
 import com.thaihoc.hotelbooking.dto.response.PageResponse;
 import com.thaihoc.hotelbooking.service.BookingService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 @RequestMapping("/bookings")
@@ -21,9 +23,9 @@ public class BookingController {
     // API tạo booking
     @PostMapping
     @PreAuthorize("hasAuthority('SCOPE_ROLE_CUSTOMER')")
-    public ApiResponse<BookingResponse> createBooking(@RequestBody BookingCreationRequest request) {
+    public ApiResponse<BookingResponse> createBooking(@RequestBody BookingCreationRequest req, HttpServletRequest http) {
         return ApiResponse.<BookingResponse>builder()
-                .result(bookingService.createBooking(request))
+                .result(bookingService.createBooking(req, http))
                 .build();
     }
 
@@ -46,5 +48,17 @@ public class BookingController {
                 .result(bookingService.getAllBookings(page, size, search, branchId, roomTypeId, bookingTypeCode, status, isPaid, checkInDate))
                 .build();
     }
+
+
+    @GetMapping("/my")
+    public ApiResponse<List<BookingListItemResponse>> getMyBookings() {
+        List<BookingListItemResponse> bookings = bookingService.getMyBookings();
+        return ApiResponse.<List<BookingListItemResponse>>builder()
+                .code(1000)
+                .message("Success")
+                .result(bookings)
+                .build();
+    }
+
 
 }

@@ -49,4 +49,14 @@ public class Payment {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
+    @PrePersist
+    public void prePersist() {
+        createdAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
+
 }
