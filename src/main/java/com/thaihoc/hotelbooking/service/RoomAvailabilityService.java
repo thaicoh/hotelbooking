@@ -46,6 +46,7 @@ public class RoomAvailabilityService {
     }
 
     public int countAvailableRooms(Long roomTypeId, LocalDateTime checkIn, LocalDateTime checkOut) {
+
         int totalRooms = roomRepository.countByRoomType_Id(roomTypeId);
 
         int occupiedBookings = bookingRepository.countActiveBookingsByRoomTypeAndDateRange(

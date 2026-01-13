@@ -7,20 +7,24 @@ import com.thaihoc.hotelbooking.dto.response.RoleResponse;
 import com.thaihoc.hotelbooking.dto.response.RoomCheckoutResponse;
 import com.thaihoc.hotelbooking.dto.response.RoomTypeResponse;
 import com.thaihoc.hotelbooking.dto.response.UserResponse;
+import com.thaihoc.hotelbooking.entity.Branch;
 import com.thaihoc.hotelbooking.entity.RoomType;
 import com.thaihoc.hotelbooking.entity.RoomTypeBookingTypePrice;
 import com.thaihoc.hotelbooking.entity.User;
+import com.thaihoc.hotelbooking.enums.BranchStatus;
 import com.thaihoc.hotelbooking.exception.AppException;
 import com.thaihoc.hotelbooking.exception.ErrorCode;
 import com.thaihoc.hotelbooking.mapper.BranchMapper;
 import com.thaihoc.hotelbooking.mapper.RoomTypeMapper;
 import com.thaihoc.hotelbooking.mapper.UserMapper;
 import com.thaihoc.hotelbooking.repository.RoomTypeBookingTypePriceRepository;
+import com.thaihoc.hotelbooking.repository.RoomTypeLockRepository;
 import com.thaihoc.hotelbooking.repository.RoomTypeRepository;
 import com.thaihoc.hotelbooking.repository.UserRepository;
 import com.thaihoc.hotelbooking.util.BookingTimeUtil;
 import com.thaihoc.hotelbooking.util.PriceCalculatorUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -44,6 +48,10 @@ public class CheckoutService {
     @Autowired
     BranchMapper branchMapper;
 
+    @Autowired
+    RoomTypeLockRepository  roomTypeLockRepository;
+
+
     public CheckoutService(RoomTypeRepository roomTypeRepository,
                            RoomTypeBookingTypePriceRepository roomTypeBookingTypePriceRepository,
                            RoomAvailabilityService roomAvailabilityService) {
@@ -52,6 +60,8 @@ public class CheckoutService {
         this.roomAvailabilityService = roomAvailabilityService;
     }
 
+
+    @PreAuthorize("hasAuthority('SCOPE_ROLE_CUSTOMER')")
     public RoomCheckoutResponse checkRoomAvailability(
             Long roomTypeId,
             String bookingTypeCode,
@@ -61,6 +71,13 @@ public class CheckoutService {
     ) {
         RoomType roomType = roomTypeRepository.findById(roomTypeId)
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_TYPE_NOT_FOUND, "Room type not found"));
+
+        // 👉 Lấy branch từ roomType và kiểm tra status
+        Branch branch = roomType.getBranch();
+        if (branch.getStatus() == BranchStatus.MAINTENANCE) {
+            throw new AppException(ErrorCode.UNHANDLED_EXCEPTION, "Branch is under maintenance.");
+        }
+
 
         LocalDateTime normalizedCheckIn = checkIn;
         LocalDateTime normalizedCheckOut = checkOut;
@@ -88,6 +105,20 @@ public class CheckoutService {
 
         int availableRooms = roomAvailabilityService.countAvailableRooms(
                 roomTypeId, normalizedCheckIn, normalizedCheckOut);
+
+        // 👉 Kiểm tra khóa loại phòng
+        if (normalizedCheckIn != null && normalizedCheckOut != null) {
+            int lockedCount = roomTypeLockRepository.countLocksByRoomTypeAndBranchAndBookingTypeAndDateRange(
+                    roomTypeId,
+                    roomType.getBranch().getId(),
+                    bookingTypeCode,
+                    normalizedCheckIn,
+                    normalizedCheckOut
+            );
+            if (lockedCount > 0) {
+                availableRooms = 0; // Nếu có khóa thì set về 0
+            }
+        }
 
         // 👉 Lấy email từ token
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();

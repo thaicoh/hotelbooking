@@ -58,6 +58,9 @@ public class BranchService {
     @Autowired
     private UserRepository  userRepository;
 
+    @Autowired
+    RoomTypeLockRepository roomTypeLockRepository;
+
 
     @PreAuthorize("hasAuthority('SCOPE_ROLE_ADMIN')")
     public BranchResponse create(BranchCreationRequest request, MultipartFile photo) {
@@ -309,6 +312,10 @@ public class BranchService {
         Branch branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND, "Branch not found"));
 
+//        if(branch.getStatus() == BranchStatus.MAINTENANCE)
+//            throw new AppException(ErrorCode.UNHANDLED_EXCEPTION, "hotel booking is MAINTENANCE.");
+
+
         // Chuẩn hoá checkOut nếu chỉ truyền checkIn + hours
         LocalDateTime normalizedCheckIn = checkIn;
         LocalDateTime normalizedCheckOut = checkOut;
@@ -324,16 +331,14 @@ public class BranchService {
             // Lấy config giá theo bookingType
             RoomTypeBookingTypePrice priceCfg = roomTypeBookingTypePriceRepository
                     .findByRoomTypeIdAndBookingTypeCode(roomType.getId(), bookingTypeCode)
-                    .orElseThrow(() -> new AppException(ErrorCode.ROOM_TYPE_BOOKING_TYPE_PRICE_NOT_FOUND, "Không tìm thấy cấu hình giá cho roomTypeId=" + roomType.getId()));
+                    .orElseThrow(() -> new AppException(ErrorCode.ROOM_TYPE_BOOKING_TYPE_PRICE_NOT_FOUND,
+                            "Không tìm thấy cấu hình giá cho roomTypeId=" + roomType.getId()));
 
             if (priceCfg == null) continue;
 
             // Validate thời gian đặt phòng
             if (normalizedCheckIn != null && normalizedCheckOut != null) {
                 BookingTimeUtil.validateBookingTime(normalizedCheckIn, normalizedCheckOut, priceCfg.getBookingType());
-                boolean available = roomAvailabilityService.isRoomTypeAvailable(
-                        roomType.getId(), normalizedCheckIn, normalizedCheckOut);
-                if (!available) continue;
             }
 
             // Tính giá
@@ -345,13 +350,27 @@ public class BranchService {
                     hours
             );
 
-
             if (computedPrice == null) continue;
-
 
             // Lấy số lượng phòng còn trống
             int availableRooms = roomAvailabilityService.countAvailableRooms(
                     roomType.getId(), normalizedCheckIn, normalizedCheckOut);
+
+            // 👉 Kiểm tra khóa loại phòng
+            int lockedCount = 0;
+            if (normalizedCheckIn != null && normalizedCheckOut != null) {
+                lockedCount = roomTypeLockRepository.countLocksByRoomTypeAndBranchAndBookingTypeAndDateRange(
+                        roomType.getId(),
+                        branchId,
+                        bookingTypeCode,
+                        normalizedCheckIn,
+                        normalizedCheckOut
+                );
+            }
+            if (lockedCount > 0) {
+                // Nếu có khóa thì set availableRooms = 0
+                availableRooms = 0;
+            }
 
             List<RoomPhoto> photos = roomPhotoRepository.findByRoomTypeId(roomType.getId());
 
@@ -368,7 +387,6 @@ public class BranchService {
                                     .map(RoomPhoto::getPhotoUrl)
                                     .toList()
                     )
-
                     .build());
         }
 
@@ -377,6 +395,7 @@ public class BranchService {
                 .branchName(branch.getBranchName())
                 .address(branch.getAddress())
                 .photoUrl(branch.getPhotoUrl())
+                .branchStatus(branch.getStatus())
                 .rooms(roomResponses)
                 .build();
     }

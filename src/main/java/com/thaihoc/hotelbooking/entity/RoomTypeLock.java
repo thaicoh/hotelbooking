@@ -29,14 +29,14 @@ public class RoomTypeLock {
     private BookingType bookingType; // Loại đặt phòng
 
     @Column(name = "locked_by", length = 100)
-    private String lockedBy; // Người thực hiện khóa (có thể là tên nhân viên)
+    private String lockedBy; // Người thực hiện khóa
 
     @Column(name = "locked_at")
-    private LocalDateTime lockedAt; // Thời gian khóa phòng
+    private LocalDateTime lockedAt; // Thời gian khóa
 
     @Column(name = "unlocked_at")
-    private LocalDateTime unlockedAt; // Thời gian mở khóa (nếu có)
+    private LocalDateTime unlockedAt; // Thời gian mở khóa
 
     @Column(name = "remarks", columnDefinition = "TEXT")
-    private String remarks; // Ghi chú về lý do khóa hoặc các chi tiết khác
+    private String remarks; // Ghi chú
 }

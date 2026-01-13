@@ -102,7 +102,7 @@ public class BranchController {
     @PutMapping("/{id}/status")
     public ApiResponse<BranchResponse> updateBranchStatus(
             @PathVariable String id,
-            @RequestParam BranchStatus status // truyền trực tiếp enum qua query param hoặc body
+            @RequestParam BranchStatus status
     ) {
         return ApiResponse.<BranchResponse>builder()
                 .result(branchService.updateStatus(id, status))
