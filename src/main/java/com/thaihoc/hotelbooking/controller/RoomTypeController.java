@@ -61,4 +61,5 @@ public class RoomTypeController {
                 .result(roomTypeService.findByBranchId(branchId))
                 .build();
     }
+
 }

@@ -67,5 +67,10 @@ public class RoomController {
                 .build();
     }
 
-
+    @GetMapping("/branch/{branchId}")
+    private ApiResponse<List<RoomResponse>> getRoomsByBranch(@PathVariable String branchId) {
+        return ApiResponse.<List<RoomResponse>>builder()
+                .result(roomService.getRoomsByBranchId(branchId))
+                .build();
+    }
 }

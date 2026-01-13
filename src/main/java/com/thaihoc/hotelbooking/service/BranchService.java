@@ -8,10 +8,7 @@ import com.thaihoc.hotelbooking.enums.BranchStatus;
 import com.thaihoc.hotelbooking.exception.AppException;
 import com.thaihoc.hotelbooking.exception.ErrorCode;
 import com.thaihoc.hotelbooking.mapper.BranchMapper;
-import com.thaihoc.hotelbooking.repository.BranchRepository;
-import com.thaihoc.hotelbooking.repository.RoomPhotoRepository;
-import com.thaihoc.hotelbooking.repository.RoomTypeBookingTypePriceRepository;
-import com.thaihoc.hotelbooking.repository.RoomTypeRepository;
+import com.thaihoc.hotelbooking.repository.*;
 import com.thaihoc.hotelbooking.util.BookingTimeUtil;
 import com.thaihoc.hotelbooking.util.PriceCalculatorUtil;
 import com.thaihoc.hotelbooking.util.StringUtil;
@@ -22,6 +19,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.access.method.P;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -55,6 +54,9 @@ public class BranchService {
 
     @Autowired
     private RoomAvailabilityService roomAvailabilityService;
+
+    @Autowired
+    private UserRepository  userRepository;
 
 
     @PreAuthorize("hasAuthority('SCOPE_ROLE_ADMIN')")
@@ -96,18 +98,37 @@ public class BranchService {
         return branchRepository.findAll();
     }
 
-    @PreAuthorize("hasAuthority('SCOPE_ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('SCOPE_ROLE_ADMIN','SCOPE_ROLE_STAFF')")
     public BranchResponse update(String id, BranchUpdateRequest request, MultipartFile photo) {
-        Branch  branch = branchRepository.findById(id).orElseThrow(() ->  new AppException(ErrorCode.BRANCH_NOT_FOUND));
+        // 👉 Lấy user hiện tại từ token
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String email = authentication.getName();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        // 👉 Nếu là STAFF thì chỉ được sửa branch của chính mình
+        boolean isStaff = user.getRoles().stream()
+                .anyMatch(r -> r.getName().equalsIgnoreCase("STAFF"));
+        if (isStaff) {
+            if (user.getBranch() == null) {
+                throw new AppException(ErrorCode.BRANCH_NOT_FOUND, "staff branch not found");
+            }
+            if (!user.getBranch().getId().equals(id)) {
+                throw new AppException(ErrorCode.UNAUTHORIZE, "staff khong co quyen update branch nay"); // hoặc ErrorCode.BRANCH_UPDATE_NOT_ALLOWED
+            }
+        }
+
+        Branch branch = branchRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND));
+
         branchMapper.updateBranch(branch, request);
 
         if (photo != null && !photo.isEmpty()) {
-            String newPhotoUrl =  fileStorageService.update(photo, branch.getPhotoUrl(), "branches/");
+            String newPhotoUrl = fileStorageService.update(photo, branch.getPhotoUrl(), "branches/");
             branch.setPhotoUrl(newPhotoUrl);
         }
 
         Branch saved = branchRepository.save(branch);
-
         return branchMapper.toBranchResponse(saved);
     }
 
@@ -141,7 +162,26 @@ public class BranchService {
                 .build();
     }
 
+    @PreAuthorize("hasAnyAuthority('SCOPE_ROLE_ADMIN','SCOPE_ROLE_STAFF')")
     public BranchResponse updateStatus(String id, BranchStatus status) {
+        // 👉 Lấy user hiện tại từ token
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String email = authentication.getName();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        // 👉 Nếu là STAFF thì chỉ được đổi trạng thái chi nhánh của chính mình
+        boolean isStaff = user.getRoles().stream()
+                .anyMatch(r -> r.getName().equalsIgnoreCase("STAFF"));
+        if (isStaff) {
+            if (user.getBranch() == null) {
+                throw new AppException(ErrorCode.BRANCH_NOT_FOUND, "staff branch not found");
+            }
+            if (!user.getBranch().getId().equals(id)) {
+                throw new AppException(ErrorCode.UNAUTHORIZE, "staff khong co quyen update branch nay");
+            }
+        }
+
         Branch branch = branchRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND));
 

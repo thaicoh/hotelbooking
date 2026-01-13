@@ -23,6 +23,9 @@
         <mapstruct.version>1.5.5.Final</mapstruct.version>
     </properties>
 
+
+
+
     <dependencies>
 
         <!-- Spring Boot -->
@@ -102,6 +105,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
         </dependency>
 
     </dependencies>

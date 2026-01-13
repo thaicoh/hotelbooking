@@ -10,6 +10,7 @@ import com.thaihoc.hotelbooking.entity.RoomType;
 import com.thaihoc.hotelbooking.exception.AppException;
 import com.thaihoc.hotelbooking.exception.ErrorCode;
 import com.thaihoc.hotelbooking.mapper.RoomMapper;
+import com.thaihoc.hotelbooking.repository.BranchRepository;
 import com.thaihoc.hotelbooking.repository.RoomRepository;
 import com.thaihoc.hotelbooking.repository.RoomTypeRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,10 @@ public class RoomService {
 
     @Autowired
     RoomTypeRepository roomTypeRepository;
+
+    @Autowired
+    BranchRepository branchRepository;
+
 
     public RoomResponse createRoom(RoomCreationRequest  roomCreationRequest) {
 
@@ -117,8 +122,17 @@ public class RoomService {
         roomTypeRepository.findById(roomTypeId)
                 .orElseThrow(() -> new AppException(ErrorCode.ROOM_TYPE_NOT_FOUND));
 
-        List<Room> rooms = roomRepository.findByRoomTypeId(roomTypeId);
+        List<Room> rooms = roomRepository.findByRoomTypeIdOrderByRoomNumberDesc(roomTypeId);
 
+        return roomMapper.toRoomResponseList(rooms);
+    }
+
+    public List<RoomResponse> getRoomsByBranchId(String branchId) {
+        // Kiểm tra branch có tồn tại không
+        branchRepository.findById(branchId)
+                .orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND));
+
+        List<Room> rooms = roomRepository.findByRoomTypeBranchIdOrderByRoomNumberDesc(branchId);
         return roomMapper.toRoomResponseList(rooms);
     }
 }

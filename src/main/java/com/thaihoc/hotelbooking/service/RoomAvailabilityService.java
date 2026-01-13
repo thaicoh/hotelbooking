@@ -24,7 +24,6 @@ public class RoomAvailabilityService {
     private static final List<BookingStatus> ACTIVE_STATUSES = List.of(
             BookingStatus.PENDING,
             BookingStatus.RESERVED,
-            BookingStatus.CONFIRMED,
             BookingStatus.PAID,
             BookingStatus.CHECKED_IN
     );

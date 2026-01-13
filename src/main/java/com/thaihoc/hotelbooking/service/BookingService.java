@@ -1,24 +1,25 @@
 package com.thaihoc.hotelbooking.service;
 
 import com.thaihoc.hotelbooking.dto.request.BookingCreationRequest;
-import com.thaihoc.hotelbooking.dto.response.BookingListItemResponse;
-import com.thaihoc.hotelbooking.dto.response.BookingResponse;
-import com.thaihoc.hotelbooking.dto.response.PageResponse;
+import com.thaihoc.hotelbooking.dto.response.*;
 import com.thaihoc.hotelbooking.entity.*;
 import com.thaihoc.hotelbooking.enums.BookingStatus;
 import com.thaihoc.hotelbooking.exception.AppException;
 import com.thaihoc.hotelbooking.exception.ErrorCode;
 import com.thaihoc.hotelbooking.mapper.BookingMapper;
+import com.thaihoc.hotelbooking.mapper.RoomMapper;
 import com.thaihoc.hotelbooking.repository.*;
 import com.thaihoc.hotelbooking.util.BookingTimeUtil;
 import com.thaihoc.hotelbooking.util.PriceCalculatorUtil;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.transaction.Transactional;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -31,6 +32,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Random;
 import java.util.UUID;
 
 @Service
@@ -63,6 +65,28 @@ public class BookingService {
 
     @Autowired
     private VnPayService vnPayService;
+
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
+
+    @Autowired
+    private RoomRepository roomRepository;
+
+    @Autowired
+    private RoomMapper roomMapper;
+
+    private String generateUniqueBookingReference() {
+        String reference;
+        do {
+            // Sinh số ngẫu nhiên 10 chữ số
+            reference = String.format("%010d", new Random().nextLong() % 1_000_000_0000L);
+            if (reference.startsWith("-")) {
+                reference = reference.substring(1); // loại bỏ dấu âm nếu có
+            }
+        } while (bookingRepository.findByBookingReference(reference).isPresent());
+        return reference;
+    }
+
 
 
 
@@ -133,7 +157,7 @@ public class BookingService {
         booking.setIsPaid(false);
         booking.setCreatedAt(LocalDateTime.now());
         booking.setCreatedBy(user.getFullName());
-        booking.setBookingReference(UUID.randomUUID().toString());
+        booking.setBookingReference(generateUniqueBookingReference());
         booking.setCheckInDate(normalizedCheckIn);
         booking.setCheckOutDate(normalizedCheckOut);
 
@@ -151,11 +175,19 @@ public class BookingService {
 
         bookingRepository.save(booking);
 
+        BookingResponse res = bookingMapper.toResponse(booking);
+
+        // Gửi cho admin (toàn hệ thống)
+        messagingTemplate.convertAndSend("/topic/bookings", res);
+
+        // Gửi cho staff của chi nhánh tương ứng
+        String branchId = booking.getRoomType().getBranch().getId();
+        messagingTemplate.convertAndSend("/topic/branch/" + branchId + "/bookings", res);
+
+
         log.info("Booking created: bookingReference={}, status={}, totalPrice={}, user={}",
                 booking.getBookingReference(), booking.getStatus(),
                 booking.getTotalPrice(), booking.getUser().getEmail());
-
-        BookingResponse res = bookingMapper.toResponse(booking);
 
         if ("ONLINE".equalsIgnoreCase(request.getPaymentMethod())) {
             String ipAddr = getClientIp(http);
@@ -191,11 +223,7 @@ public class BookingService {
         return request.getRemoteAddr();
     }
 
-
-
-
-
-
+    @PreAuthorize("hasAnyAuthority('SCOPE_ROLE_ADMIN','SCOPE_ROLE_STAFF')")
     public PageResponse<BookingListItemResponse> getAllBookings(
             int page,
             int size,
@@ -209,13 +237,24 @@ public class BookingService {
     ) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
-        // TODO: viết Specification hoặc query động để lọc theo các tham số
-        Page<Booking> bookingPage = bookingRepository.findAll(pageable);
+        Page<Booking> bookingPage = bookingRepository.searchBookings(
+                search,
+                branchId,
+                roomTypeId,
+                bookingTypeCode,
+                status != null ? BookingStatus.valueOf(status) : null,
+                isPaid,
+                checkInDate,
+                pageable
+        );
 
         List<BookingListItemResponse> items = bookingPage.getContent().stream().map(booking -> {
             Payment latestPayment = paymentRepository
                     .findTopByBookingOrderByPaymentDateDesc(booking)
                     .orElse(null);
+
+            Room room = booking.getRoom();
+
 
             return BookingListItemResponse.builder()
                     .bookingId(booking.getBookingId())
@@ -233,6 +272,9 @@ public class BookingService {
                     .isPaid(booking.getIsPaid())
                     .paymentStatus(latestPayment != null ? latestPayment.getPaymentStatus() : null)
                     .createdAt(booking.getCreatedAt())
+                    .roomId(room != null ? room.getRoomId() : null)
+                    .roomNumber(room != null ? room.getRoomNumber() : null)
+                    .bookingTypeCode(booking.getBookingType().getCode())
                     .build();
         }).toList();
 
@@ -279,6 +321,218 @@ public class BookingService {
                     .isPaid(booking.getIsPaid())
                     .paymentStatus(latestPayment != null ? latestPayment.getPaymentStatus() : null)
                     .createdAt(booking.getCreatedAt())
+                    .build();
+        }).toList();
+    }
+
+    public RoomAvailabilityResponse checkAvailableRooms(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        Long roomTypeId = booking.getRoomType().getId();
+        LocalDateTime checkIn = booking.getCheckInDate();
+        LocalDateTime checkOut = booking.getCheckOutDate();
+
+        // trạng thái được coi là đang chiếm phòng
+        List<BookingStatus> activeStatuses = List.of(BookingStatus.CHECKED_IN, BookingStatus.RESERVED, BookingStatus.PAID);
+
+        log.info("BookingId={}, roomTypeId={}, checkIn={}, checkOut={}",
+                bookingId, roomTypeId, checkIn, checkOut);
+        log.info("Active statuses={}", activeStatuses);
+
+        List<Room> allRooms = roomRepository.findByRoomTypeIdOrderByRoomNumberDesc(roomTypeId);
+        List<Room> availableRooms = roomRepository.findAvailableRoomsByRoomTypeAndDateRange(
+                roomTypeId, activeStatuses, checkIn, checkOut
+        );
+
+        log.info("All rooms size={}, available rooms size={}",
+                allRooms.size(), availableRooms.size());
+        availableRooms.forEach(r -> log.info("Available room: id={}, number={}", r.getRoomId(), r.getRoomNumber()));
+
+        return RoomAvailabilityResponse.builder()
+                .allRooms(roomMapper.toRoomResponseList(allRooms))
+                .availableRooms(roomMapper.toRoomResponseList(availableRooms))
+                .build();
+    }
+
+
+    @Transactional
+    public void assignRoomToBooking(Long bookingId, String roomId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+
+        // Kiểm tra roomType
+        if (!room.getRoomType().getId().equals(booking.getRoomType().getId())) {
+            throw new AppException(ErrorCode.UNHANDLED_EXCEPTION, "Room type does not match booking room type");
+        }
+
+        // Lấy danh sách phòng khả dụng trong khoảng thời gian của booking
+        List<BookingStatus> activeStatuses = List.of(
+                BookingStatus.CHECKED_IN,
+                BookingStatus.RESERVED,
+                BookingStatus.PAID
+        );
+
+        List<Room> availableRooms = roomRepository.findAvailableRoomsByRoomTypeAndDateRange(
+                booking.getRoomType().getId(),
+                activeStatuses,
+                booking.getCheckInDate(),
+                booking.getCheckOutDate()
+        );
+
+        // Kiểm tra room gửi lên có nằm trong danh sách availableRooms không
+        boolean isAvailable = availableRooms.stream()
+                .anyMatch(r -> r.getRoomId().equals(roomId));
+
+        if (!isAvailable) {
+            throw new AppException(ErrorCode.UNHANDLED_EXCEPTION, "Room is not available in this time range");
+        }
+
+        // Gán phòng cho booking
+        booking.setRoom(room);
+        bookingRepository.save(booking);
+    }
+
+    @Transactional
+    public void removeRoomFromBooking(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        if (booking.getRoom() == null) {
+            throw new AppException(ErrorCode.UNHANDLED_EXCEPTION, "Booking has no room assigned");
+        }
+
+        booking.setRoom(null);
+        bookingRepository.save(booking);
+
+    }
+
+
+    @Transactional
+    public void updateBookingStatus(Long bookingId, String statusStr) {
+        BookingStatus newStatus;
+        try {
+            newStatus = BookingStatus.valueOf(statusStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new AppException(ErrorCode.UNHANDLED_EXCEPTION, "Invalid booking status: " + statusStr);
+        }
+
+        // Không cho chỉnh thành PENDING
+        if (newStatus == BookingStatus.PENDING) {
+            throw new AppException(ErrorCode.UNHANDLED_EXCEPTION, "Cannot change status to PENDING");
+        }
+
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        // Lấy danh sách payment của booking
+        List<Payment> payments = paymentRepository.findByBooking(booking);
+
+        boolean hasVNPayPayment = payments.stream()
+                .anyMatch(p -> "VNPAY".equalsIgnoreCase(p.getPaymentMethod()));
+
+        // Nếu có VNPay payment thì không cho chỉnh thành RESERVED hoặc CANCELLED
+        if (hasVNPayPayment && (newStatus == BookingStatus.RESERVED || newStatus == BookingStatus.CANCELLED)) {
+            throw new AppException(ErrorCode.UNHANDLED_EXCEPTION,
+                    "Cannot change status to " + newStatus + " when booking has VNPay payment");
+        }
+
+        // Nếu chuyển sang PAID / CHECKED_IN / CHECKED_OUT
+        if (newStatus == BookingStatus.PAID
+                || newStatus == BookingStatus.CHECKED_IN
+                || newStatus == BookingStatus.CHECKED_OUT) {
+
+            // Kiểm tra đã có payment và isPaid chưa
+            boolean alreadyPaid = booking.getIsPaid() != null && booking.getIsPaid();
+            boolean hasAnyPayment = !payments.isEmpty();
+
+            if (!alreadyPaid || !hasAnyPayment) {
+                // Tạo payment mới
+                Payment payment = new Payment();
+                payment.setBooking(booking);
+                payment.setAmount(booking.getTotalPrice());
+                payment.setCurrency("VND");
+                payment.setPaymentMethod("CASH_AT_HOTEL"); // hoặc "CASH"
+                payment.setPaymentStatus("SUCCESS");
+                payment.setPaymentDate(LocalDateTime.now());
+                paymentRepository.save(payment);
+
+                // Đánh dấu booking đã thanh toán
+                booking.setIsPaid(true);
+            }
+        }
+
+        booking.setStatus(newStatus);
+        booking.setUpdatedAt(LocalDateTime.now());
+        bookingRepository.save(booking);
+    }
+
+    @Transactional()
+    public BookingDetailResponse getBookingDetail(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        // Lấy danh sách payment của booking
+        List<Payment> payments = paymentRepository.findByBooking(booking);
+
+        return BookingDetailResponse.builder()
+                .bookingId(booking.getBookingId())
+                .bookingReference(booking.getBookingReference())
+                .customerName(booking.getUser().getFullName())
+                .customerPhone(booking.getUser().getPhone())
+                .branchName(booking.getRoomType().getBranch().getBranchName())
+                .roomTypeName(booking.getRoomType().getTypeName())
+                .bookingTypeName(booking.getBookingType().getName())
+                .checkInDate(booking.getCheckInDate())
+                .checkOutDate(booking.getCheckOutDate())
+                .totalPrice(booking.getTotalPrice())
+                .currency("VND")
+                .status(booking.getStatus().toString())
+                .isPaid(booking.getIsPaid())
+                .createdAt(booking.getCreatedAt())
+                .roomId(booking.getRoom() != null ? booking.getRoom().getRoomId() : null)
+                .roomNumber(booking.getRoom() != null ? booking.getRoom().getRoomNumber() : null)
+                .payments(payments.stream().map(p -> PaymentResponse.builder()
+                        .paymentId(p.getPaymentId())
+                        .amount(p.getAmount())
+                        .currency(p.getCurrency())
+                        .paymentMethod(p.getPaymentMethod())
+                        .paymentStatus(p.getPaymentStatus())
+                        .transactionPreference(p.getTransactionPreference())
+                        .paymentDate(p.getPaymentDate())
+                        .notes(p.getNotes())
+                        .build()
+                ).toList())
+                .build();
+    }
+
+
+    public List<BookingListItemResponse> getBookingsByBranchAndDate(String branchId, LocalDate date) {
+        List<BookingStatus> excludedStatuses = List.of(BookingStatus.PENDING, BookingStatus.CANCELLED);
+
+        List<Booking> bookings = bookingRepository.findBookingsByBranchAndDate(branchId, date, excludedStatuses);
+
+        return bookings.stream().map(booking -> {
+            Room room = booking.getRoom();
+            return BookingListItemResponse.builder()
+                    .bookingId(booking.getBookingId())
+                    .bookingReference(booking.getBookingReference())
+                    .customerName(booking.getUser().getFullName())
+                    .customerPhone(booking.getUser().getPhone())
+                    .branchName(booking.getRoomType().getBranch().getBranchName())
+                    .roomTypeName(booking.getRoomType().getTypeName())
+                    .bookingTypeName(booking.getBookingType().getName())
+                    .checkInDate(booking.getCheckInDate())
+                    .checkOutDate(booking.getCheckOutDate())
+                    .totalPrice(booking.getTotalPrice())
+                    .currency("VND")
+                    .status(booking.getStatus().toString())
+                    .isPaid(booking.getIsPaid())
+                    .roomId(room != null ? room.getRoomId() : null)
+                    .roomNumber(room != null ? room.getRoomNumber() : null)
                     .build();
         }).toList();
     }
