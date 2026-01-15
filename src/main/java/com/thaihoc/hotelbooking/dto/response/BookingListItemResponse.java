@@ -36,5 +36,9 @@ public class BookingListItemResponse {
     private Integer roomNumber;
 
     private String bookingTypeCode;
+
+    private Boolean reviewed;   // đã được đánh giá chưa
+    private Integer rating;     // số sao đánh giá (1–5)
+
 }
 

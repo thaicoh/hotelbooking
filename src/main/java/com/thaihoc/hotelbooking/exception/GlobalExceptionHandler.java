@@ -1,13 +1,16 @@
 package com.thaihoc.hotelbooking.exception;
 
 import com.thaihoc.hotelbooking.dto.response.ApiResponse;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import java.nio.file.AccessDeniedException;
 import java.util.Comparator;
 import java.util.List;
 
@@ -93,5 +96,15 @@ public class GlobalExceptionHandler {
                 );
     }
 
+
+    @ExceptionHandler(value = { AccessDeniedException.class, AuthorizationDeniedException.class })
+    public ResponseEntity<ApiResponse> handleAccessDenied(Exception ex) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN) // 403
+                .body(ApiResponse.builder()
+                        .code(ErrorCode.UNAUTHORIZE.getCode())
+                        .message(ErrorCode.UNAUTHORIZE.getMessage())
+                        .build());
+    }
 
 }

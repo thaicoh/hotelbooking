@@ -1,7 +1,11 @@
 package com.thaihoc.hotelbooking.configuration;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.thaihoc.hotelbooking.dto.response.ApiResponse;
+import com.thaihoc.hotelbooking.exception.ErrorCode;
 import com.thaihoc.hotelbooking.security.filter.JwtBlacklistFilter;
 import com.thaihoc.hotelbooking.security.filter.UserStatusFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -15,6 +19,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -93,10 +98,16 @@ public class SecurityConfig {
                 .authenticationEntryPoint(new JwtAuthenticationEntryPoint())
         );
 
+        // ⭐ Gắn AccessDeniedHandler vào exceptionHandling
+        httpSecurity.exceptionHandling(ex -> ex
+                .accessDeniedHandler(accessDeniedHandler())
+        );
+
+
         // ⭐ Bật CORS
         httpSecurity.cors(Customizer.withDefaults());
 
-        // ⭐ Tắt CSRF
+        // ⭐ Tắt CS RF
         httpSecurity.csrf(AbstractHttpConfigurer::disable);
 
         return httpSecurity.build();
@@ -117,5 +128,20 @@ public class SecurityConfig {
 
         return source;
     }
+
+    @Bean
+    public AccessDeniedHandler accessDeniedHandler() {
+        return (request, response, accessDeniedException) -> {
+            ApiResponse<?> apiResponse = ApiResponse.builder()
+                    .code(ErrorCode.UNAUTHORIZE.getCode())
+                    .message("Access Denied")
+                    .build();
+
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.setContentType("application/json");
+            new ObjectMapper().writeValue(response.getOutputStream(), apiResponse);
+        };
+    }
+
 
 }

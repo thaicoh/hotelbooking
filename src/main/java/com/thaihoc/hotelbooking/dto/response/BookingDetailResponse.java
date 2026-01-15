@@ -27,5 +27,8 @@ public class BookingDetailResponse {
     private String roomId;
     private Integer roomNumber;
     private List<PaymentResponse> payments;
+
+    private Boolean reviewed;   // đã được đánh giá chưa
+    private Integer rating;     // số sao đánh giá (1–5)
 }
 

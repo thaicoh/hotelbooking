@@ -1,0 +1,89 @@
+package com.thaihoc.hotelbooking.service;
+
+import com.thaihoc.hotelbooking.dto.request.ReviewRequest;
+import com.thaihoc.hotelbooking.dto.response.ReviewResponse;
+import com.thaihoc.hotelbooking.entity.Booking;
+import com.thaihoc.hotelbooking.entity.Review;
+import com.thaihoc.hotelbooking.entity.User;
+import com.thaihoc.hotelbooking.enums.BookingStatus;
+import com.thaihoc.hotelbooking.exception.AppException;
+import com.thaihoc.hotelbooking.exception.ErrorCode;
+import com.thaihoc.hotelbooking.mapper.ReviewMapper;
+import com.thaihoc.hotelbooking.repository.BookingRepository;
+import com.thaihoc.hotelbooking.repository.ReviewRepository;
+import com.thaihoc.hotelbooking.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class ReviewService {
+
+    private final BookingRepository bookingRepository;
+    private final ReviewRepository reviewRepository;
+
+    @Autowired
+    private ReviewMapper reviewMapper;
+
+    private final UserRepository  userRepository;
+
+    @PreAuthorize("hasAnyAuthority('SCOPE_ROLE_CUSTOMER')")
+    public void createReview(User user, ReviewRequest request) {
+        Booking booking = bookingRepository.findById(request.getBookingId())
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        // Kiểm tra quyền sở hữu
+        if (!booking.getUser().getUserId().equals(user.getUserId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZE, "Bạn không thể đánh giá booking này.");
+        }
+
+        // Kiểm tra trạng thái booking
+        if (booking.getStatus() != BookingStatus.CHECKED_OUT || !booking.getIsPaid()) {
+            throw new AppException(ErrorCode.UNHANDLED_EXCEPTION, "Chỉ được đánh giá booking đã check-out và đã thanh toán.");
+        }
+
+        // Kiểm tra đã đánh giá chưa
+        if (reviewRepository.existsByBooking(booking)) {
+            throw new AppException(ErrorCode.UNHANDLED_EXCEPTION, "Booking đã được đánh giá.");
+        }
+
+        Review review = Review.builder()
+                .user(user)
+                .booking(booking)
+                .rating(request.getRating())
+                .comment(request.getComment())
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        reviewRepository.save(review);
+    }
+
+    public List<ReviewResponse> getReviewsByBranch(String branchId) {
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String email = authentication.getName();
+
+        return reviewMapper.toReviewResponseList(reviewRepository.findAllByBranchId(branchId));
+    }
+
+    @PreAuthorize("hasAnyAuthority('SCOPE_ROLE_STAFF')")
+    public List<ReviewResponse> getReviewsByRoomType(Long roomTypeId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String email = authentication.getName();
+
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        if (roomTypeId == null) {
+            return reviewMapper.toReviewResponseList(reviewRepository.findAllByBranchId(user.getBranch().getId()));
+        }
+        return reviewMapper.toReviewResponseList(reviewRepository.findAllByRoomTypeId(roomTypeId));
+    }
+
+}

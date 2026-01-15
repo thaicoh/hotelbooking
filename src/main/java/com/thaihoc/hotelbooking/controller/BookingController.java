@@ -144,4 +144,18 @@ public class BookingController {
                 .build();
     }
 
+
+    @PutMapping("/cancel/{bookingId}")
+    @PreAuthorize("hasAnyAuthority('SCOPE_ROLE_CUSTOMER')")
+    public ApiResponse<String> cancelBooking(@PathVariable Long bookingId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String email = authentication.getName();
+
+        bookingService.cancelBooking(bookingId, email);
+        return ApiResponse.<String>builder()
+                .result("Booking cancelled successfully")
+                .build();
+    }
+
+
 }

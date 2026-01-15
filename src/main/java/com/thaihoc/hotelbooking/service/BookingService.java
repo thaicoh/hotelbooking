@@ -32,6 +32,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
 
@@ -74,6 +75,9 @@ public class BookingService {
 
     @Autowired
     private RoomMapper roomMapper;
+
+    @Autowired
+    private ReviewRepository reviewRepository;
 
     private String generateUniqueBookingReference() {
         String reference;
@@ -299,11 +303,14 @@ public class BookingService {
         // 👉 Lấy tất cả booking của user này
         List<Booking> bookings = bookingRepository.findByUser(user);
 
-        // 👉 Convert sang response
+
+
         return bookings.stream().map(booking -> {
             Payment latestPayment = paymentRepository
                     .findTopByBookingOrderByPaymentDateDesc(booking)
                     .orElse(null);
+
+            Optional<Review> optionalReview = reviewRepository.findByBooking_BookingId(booking.getBookingId());
 
             return BookingListItemResponse.builder()
                     .bookingId(booking.getBookingId())
@@ -319,6 +326,9 @@ public class BookingService {
                     .currency("VND") // hoặc lấy từ price config
                     .status(booking.getStatus().toString())
                     .isPaid(booking.getIsPaid())
+                    // ✅ xử lý Optional an toàn
+                    .reviewed(optionalReview.isPresent())
+                    .rating(optionalReview.map(Review::getRating).orElse(null))
                     .paymentStatus(latestPayment != null ? latestPayment.getPaymentStatus() : null)
                     .createdAt(booking.getCreatedAt())
                     .build();
@@ -477,6 +487,8 @@ public class BookingService {
 
         // Lấy danh sách payment của booking
         List<Payment> payments = paymentRepository.findByBooking(booking);
+        Optional<Review> optionalReview = reviewRepository.findByBooking_BookingId(booking.getBookingId());
+
 
         return BookingDetailResponse.builder()
                 .bookingId(booking.getBookingId())
@@ -495,6 +507,13 @@ public class BookingService {
                 .createdAt(booking.getCreatedAt())
                 .roomId(booking.getRoom() != null ? booking.getRoom().getRoomId() : null)
                 .roomNumber(booking.getRoom() != null ? booking.getRoom().getRoomNumber() : null)
+
+                // ✅ xử lý Optional an toàn
+                .reviewed(optionalReview.isPresent())
+                .rating(optionalReview.map(Review::getRating).orElse(null))
+
+
+
                 .payments(payments.stream().map(p -> PaymentResponse.builder()
                         .paymentId(p.getPaymentId())
                         .amount(p.getAmount())
@@ -536,5 +555,38 @@ public class BookingService {
                     .build();
         }).toList();
     }
+
+    @Transactional
+    @PreAuthorize("hasAnyAuthority('SCOPE_ROLE_CUSTOMER')")
+    public void cancelBooking(Long bookingId, String userEmail) {
+        // Lấy user từ email trong SecurityContext
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        // Kiểm tra quyền sở hữu booking
+        if (!booking.getUser().getUserId().equals(user.getUserId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZE, "Bạn không thể hủy booking này.");
+        }
+
+        // Kiểm tra đã thanh toán chưa
+        if (Boolean.TRUE.equals(booking.getIsPaid())) {
+            throw new AppException(ErrorCode.UNHANDLED_EXCEPTION, "Booking đã thanh toán, không thể hủy.");
+        }
+
+        // Kiểm tra thời gian hiện tại so với check-in
+        if (LocalDateTime.now().isAfter(booking.getCheckInDate())) {
+            throw new AppException(ErrorCode.UNHANDLED_EXCEPTION, "Đã đến hoặc qua thời gian check-in, không thể hủy.");
+        }
+
+        // Thực hiện hủy
+        booking.setStatus(BookingStatus.CANCELLED);
+        booking.setCancelledAt(LocalDateTime.now());
+        booking.setUpdatedAt(LocalDateTime.now());
+        bookingRepository.save(booking);
+    }
+
 
 }
