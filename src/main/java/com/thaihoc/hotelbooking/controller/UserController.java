@@ -1,6 +1,7 @@
 package com.thaihoc.hotelbooking.controller;
 
 import com.thaihoc.hotelbooking.dto.request.AdminCreateUserRequest;
+import com.thaihoc.hotelbooking.dto.request.ChangePasswordRequest;
 import com.thaihoc.hotelbooking.dto.request.UpdateUserStatusRequest;
 import com.thaihoc.hotelbooking.dto.request.UserCreationRequest;
 import com.thaihoc.hotelbooking.dto.response.ApiResponse;
@@ -81,4 +82,14 @@ public class UserController {
                 .result(userService.getMyInfo())
                 .build();
     }
+
+    @PostMapping("/change-password")
+    public ApiResponse<String> changePassword(@RequestBody @Valid ChangePasswordRequest request) {
+        userService.changePassword(request);
+        return ApiResponse.<String>builder()
+                .result("Password changed successfully")
+                .build();
+    }
+
+
 }

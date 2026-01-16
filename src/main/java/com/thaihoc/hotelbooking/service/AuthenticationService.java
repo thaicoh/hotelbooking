@@ -109,7 +109,6 @@ public class AuthenticationService {
 
         boolean valid = true;
 
-
         try {
             verifyToken(token, false);
 

@@ -1,6 +1,7 @@
 package com.thaihoc.hotelbooking.service;
 
 import com.thaihoc.hotelbooking.dto.request.AdminCreateUserRequest;
+import com.thaihoc.hotelbooking.dto.request.ChangePasswordRequest;
 import com.thaihoc.hotelbooking.dto.request.UserCreationRequest;
 import com.thaihoc.hotelbooking.dto.response.PageResponse;
 import com.thaihoc.hotelbooking.dto.response.UserResponse;
@@ -203,6 +204,25 @@ public class UserService {
         return userMapper.toUserResponse(user);
     }
 
+    public void changePassword(ChangePasswordRequest request) {
+        // Lấy user hiện tại từ SecurityContextHolder
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String currentUserEmail = authentication.getName(); // thường là email hoặc username
 
+        User user = userRepository.findByEmail(currentUserEmail)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "user not found"));
 
+        PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
+
+        // Kiểm tra mật khẩu cũ
+        boolean authenticated = passwordEncoder.matches(request.getOldPassword(), user.getPasswordHash());
+
+        if (!authenticated) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED, "password not match");
+        }
+
+        // Cập nhật mật khẩu mới
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+    }
 }
