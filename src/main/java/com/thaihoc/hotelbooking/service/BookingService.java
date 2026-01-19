@@ -79,6 +79,9 @@ public class BookingService {
     @Autowired
     private ReviewRepository reviewRepository;
 
+    @Autowired
+    EmailService  emailService;
+
     private String generateUniqueBookingReference() {
         String reference;
         do {
@@ -168,6 +171,18 @@ public class BookingService {
         // 👉 Phân nhánh theo paymentMethod
         if ("PAY_AT_HOTEL".equalsIgnoreCase(request.getPaymentMethod())) {
             booking.setStatus(BookingStatus.RESERVED);
+
+            // ✅ Gửi mail xác nhận đặt phòng thành công
+            emailService.sendBookingConfirmation(
+                    user.getEmail(),
+                    booking.getBookingReference(),
+                    roomType.getTypeName(),
+                    normalizedCheckIn.toLocalDate(),
+                    normalizedCheckOut.toLocalDate(),
+                    totalPrice
+            );
+
+
         } else if ("ONLINE".equalsIgnoreCase(request.getPaymentMethod())) {
             booking.setStatus(BookingStatus.PENDING);
             // ⏰ Set thời gian hết hạn
@@ -586,7 +601,15 @@ public class BookingService {
         booking.setCancelledAt(LocalDateTime.now());
         booking.setUpdatedAt(LocalDateTime.now());
         bookingRepository.save(booking);
+
+        // Gửi email thông báo hủy phòng
+        emailService.sendBookingCancellation(
+                booking.getUser().getEmail(),
+                booking.getBookingReference(),
+                booking.getRoomType().getTypeName(),
+                booking.getCheckInDate().toLocalDate(),
+                booking.getCheckOutDate().toLocalDate(),
+                booking.getTotalPrice()
+        );
     }
-
-
 }

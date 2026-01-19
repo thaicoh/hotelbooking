@@ -312,11 +312,7 @@ public class BranchService {
         Branch branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new AppException(ErrorCode.BRANCH_NOT_FOUND, "Branch not found"));
 
-//        if(branch.getStatus() == BranchStatus.MAINTENANCE)
-//            throw new AppException(ErrorCode.UNHANDLED_EXCEPTION, "hotel booking is MAINTENANCE.");
-
-
-        // Chuẩn hoá checkOut nếu chỉ truyền checkIn + hours
+        // Chuẩn hoá checkOut
         LocalDateTime normalizedCheckIn = checkIn;
         LocalDateTime normalizedCheckOut = checkOut;
         if (normalizedCheckIn != null && normalizedCheckOut == null && hours != null && hours > 0) {
@@ -324,11 +320,10 @@ public class BranchService {
         }
 
         List<RoomType> roomTypes = roomTypeRepository.findByBranchId(branchId);
-
         List<RoomTypeDetailResponse> roomResponses = new ArrayList<>();
 
         for (RoomType roomType : roomTypes) {
-            // Lấy config giá theo bookingType
+            // Lấy config giá
             RoomTypeBookingTypePrice priceCfg = roomTypeBookingTypePriceRepository
                     .findByRoomTypeIdAndBookingTypeCode(roomType.getId(), bookingTypeCode)
                     .orElseThrow(() -> new AppException(ErrorCode.ROOM_TYPE_BOOKING_TYPE_PRICE_NOT_FOUND,
@@ -336,41 +331,69 @@ public class BranchService {
 
             if (priceCfg == null) continue;
 
-            // Validate thời gian đặt phòng
+            // --- SỬA
+
+            boolean isTimeValid = true; // Cờ đánh dấu thời gian hợp lệ
+
+            // 1. Validate thời gian (Bọc trong try-catch)
             if (normalizedCheckIn != null && normalizedCheckOut != null) {
-                BookingTimeUtil.validateBookingTime(normalizedCheckIn, normalizedCheckOut, priceCfg.getBookingType());
+                try {
+                    BookingTimeUtil.validateBookingTime(normalizedCheckIn, normalizedCheckOut, priceCfg.getBookingType());
+                } catch (AppException e) {
+                    // Nếu validate lỗi -> Log lại (tuỳ chọn) và đánh dấu là không hợp lệ
+                    // Không throw exception nữa
+                    isTimeValid = false;
+                }
             }
 
-            // Tính giá
-            BigDecimal computedPrice = PriceCalculatorUtil.computeSearchPrice(
-                    priceCfg,
-                    priceCfg.getBookingType(),
-                    normalizedCheckIn,
-                    normalizedCheckOut,
-                    hours
-            );
+            BigDecimal computedPrice;
+
+            // 2. Tính giá (Chỉ tính nếu thời gian hợp lệ để tránh lỗi logic toán học)
+            if (isTimeValid) {
+                computedPrice = PriceCalculatorUtil.computeSearchPrice(
+                        priceCfg,
+                        priceCfg.getBookingType(),
+                        normalizedCheckIn,
+                        normalizedCheckOut,
+                        hours
+                );
+            } else {
+                // Nếu thời gian sai, không thể tính giá theo giờ thực tế.
+                // Gán giá = 0 (hoặc giá base) để code không bị null pointer và vẫn hiện phòng ra list.
+                computedPrice = BigDecimal.ZERO;
+            }
 
             if (computedPrice == null) continue;
 
-            // Lấy số lượng phòng còn trống
-            int availableRooms = roomAvailabilityService.countAvailableRooms(
-                    roomType.getId(), normalizedCheckIn, normalizedCheckOut);
+            // 3. Lấy số lượng phòng còn trống
+            int availableRooms = 0; // Mặc định là 0
 
-            // 👉 Kiểm tra khóa loại phòng
-            int lockedCount = 0;
-            if (normalizedCheckIn != null && normalizedCheckOut != null) {
-                lockedCount = roomTypeLockRepository.countLocksByRoomTypeAndBranchAndBookingTypeAndDateRange(
-                        roomType.getId(),
-                        branchId,
-                        bookingTypeCode,
-                        normalizedCheckIn,
-                        normalizedCheckOut
-                );
-            }
-            if (lockedCount > 0) {
-                // Nếu có khóa thì set availableRooms = 0
+            if (isTimeValid) {
+                // Chỉ check DB nếu thời gian hợp lệ
+                availableRooms = roomAvailabilityService.countAvailableRooms(
+                        roomType.getId(), normalizedCheckIn, normalizedCheckOut);
+
+                // Kiểm tra khóa loại phòng
+                int lockedCount = 0;
+                if (normalizedCheckIn != null && normalizedCheckOut != null) {
+                    lockedCount = roomTypeLockRepository.countLocksByRoomTypeAndBranchAndBookingTypeAndDateRange(
+                            roomType.getId(),
+                            branchId,
+                            bookingTypeCode,
+                            normalizedCheckIn,
+                            normalizedCheckOut
+                    );
+                }
+
+                if (lockedCount > 0) {
+                    availableRooms = 0;
+                }
+            } else {
+                // Nếu thời gian không hợp lệ (isTimeValid = false) -> availableRooms giữ nguyên là 0
                 availableRooms = 0;
             }
+
+            // --- KẾT THÚC SỬA ĐỔI ---
 
             List<RoomPhoto> photos = roomPhotoRepository.findByRoomTypeId(roomType.getId());
 
@@ -382,11 +405,7 @@ public class BranchService {
                     .price(computedPrice)
                     .currency(priceCfg.getCurrency() != null ? priceCfg.getCurrency() : "VND")
                     .availableRooms(availableRooms)
-                    .photoUrls(
-                            photos.stream()
-                                    .map(RoomPhoto::getPhotoUrl)
-                                    .toList()
-                    )
+                    .photoUrls(photos.stream().map(RoomPhoto::getPhotoUrl).toList())
                     .build());
         }
 

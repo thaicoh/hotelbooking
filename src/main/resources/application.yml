@@ -50,5 +50,5 @@ vnpay:
   hashSecret: KTFKXYF7KRFE9A7NY9D4CST8QE428O02
   payUrl: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
   returnUrl: https://thaicoh.github.io/hotel-booking-frontend/checkout
-  ipnUrl: https://panatrophic-tamesha-ripe.ngrok-free.dev/hotel-booking/api/vnpay/ipn
+  ipnUrl: https://c152bdc2cd105c.lhr.life/hotel-booking/api/vnpay/ipn
 

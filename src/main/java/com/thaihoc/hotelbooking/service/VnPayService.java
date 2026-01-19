@@ -52,8 +52,8 @@ public class VnPayService {
         params.put("vnp_CreateDate", vnpCreateDate);
         params.put("vnp_ExpireDate", vnpExpireDate);
 
-        // Nếu bạn có public IPN URL để VNPay call:
-        //params.put("vnp_IpnUrl", ipnUrl);
+//        // Nếu bạn có public IPN URL để VNPay call:
+//        params.put("vnp_IpnUrl", ipnUrl);
 
         String query = VnPayUtil.buildQueryString(params);
         String secureHash = VnPayUtil.hmacSHA512(hashSecret, query);
