@@ -14,12 +14,17 @@ import com.thaihoc.hotelbooking.repository.ReviewRepository;
 import com.thaihoc.hotelbooking.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 @Service
@@ -73,17 +78,69 @@ public class ReviewService {
         return reviewMapper.toReviewResponseList(reviewRepository.findAllByBranchId(branchId));
     }
 
-    @PreAuthorize("hasAnyAuthority('SCOPE_ROLE_STAFF')")
     public List<ReviewResponse> getReviewsByRoomType(Long roomTypeId) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String email = authentication.getName();
 
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        // Lấy danh sách quyền của user
+        Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
+        boolean isAdmin = authorities.stream()
+                .anyMatch(auth -> auth.getAuthority().equals("SCOPE_ROLE_ADMIN"));
+        boolean isStaff = authorities.stream()
+                .anyMatch(auth -> auth.getAuthority().equals("SCOPE_ROLE_STAFF"));
 
         if (roomTypeId == null) {
-            return reviewMapper.toReviewResponseList(reviewRepository.findAllByBranchId(user.getBranch().getId()));
+            if (isAdmin) {
+                // ADMIN: lấy tất cả review không cần kiểm tra branch
+                return reviewMapper.toReviewResponseList(reviewRepository.findAll());
+            } else if (isStaff) {
+                // STAFF: chỉ lấy review theo branch của staff
+                if (user.getBranch() == null) {
+                    throw new AppException(ErrorCode.UNHANDLED_EXCEPTION, "Staff chưa được gán branch");
+                }
+                return reviewMapper.toReviewResponseList(
+                        reviewRepository.findAllByBranchId(user.getBranch().getId())
+                );
+            } else {
+                throw new AppException(ErrorCode.UNAUTHORIZE, "Bạn không có quyền xem review theo branch");
+            }
         }
+
+        // Nếu có roomTypeId thì lấy theo roomTypeId (cả ADMIN và STAFF đều được)
         return reviewMapper.toReviewResponseList(reviewRepository.findAllByRoomTypeId(roomTypeId));
+    }
+
+    public Page<ReviewResponse> getReviewsByBranchPaged(String branchId, Pageable pageable) {
+        Page<Review> reviewPage = reviewRepository.findAllByBranchId(branchId, pageable);
+        List<ReviewResponse> responseList = reviewMapper.toReviewResponseList(reviewPage.getContent());
+        return new PageImpl<>(responseList, pageable, reviewPage.getTotalElements());
+    }
+
+
+    @PreAuthorize("hasAnyAuthority('SCOPE_ROLE_ADMIN')")
+    public List<ReviewResponse> getReviewsForAdmin(String branchId, Long roomTypeId) {
+        // Nếu không truyền gì → lấy tất cả review
+        if (branchId == null && roomTypeId == null) {
+            return reviewMapper.toReviewResponseList(reviewRepository.findAll());
+        }
+
+        // Nếu chỉ truyền branchId → lấy tất cả review trong branch đó
+        if (branchId != null && roomTypeId == null) {
+            return reviewMapper.toReviewResponseList(reviewRepository.findAllByBranchId(branchId));
+        }
+
+        // Nếu chỉ truyền roomTypeId → lấy review theo roomType
+        if (roomTypeId != null && branchId == null) {
+            return reviewMapper.toReviewResponseList(reviewRepository.findAllByRoomTypeId(roomTypeId));
+        }
+
+        // Nếu truyền cả branchId và roomTypeId → lấy review trong roomType thuộc branch đó
+        return reviewMapper.toReviewResponseList(
+                reviewRepository.findAllByBranchIdAndRoomTypeId(branchId, roomTypeId)
+        );
     }
 
 }

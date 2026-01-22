@@ -44,7 +44,7 @@ public class SecurityConfig {
     @Autowired
     private UserStatusFilter userStatusFilter;
 
-    private final String [] PUBLIC_ENDPOINTS = {"/users","/auth","/auth/**","/branch/search-hotels", "/branch/*/hotel-detail"};
+    private final String [] PUBLIC_ENDPOINTS = {"/users","/auth","/auth/**","/branch/search-hotels", "/branch/*/hotel-detail", "/reviews/branch/*/paged"};
 
     private final String [] PUBLIC_TEST_ENDPOINTS = {"/room_type" ,
 
@@ -57,7 +57,7 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
 
         httpSecurity.authorizeHttpRequests(requests ->
-                requests.requestMatchers(HttpMethod.POST, PUBLIC_ENDPOINTS).permitAll()
+                requests.requestMatchers(PUBLIC_ENDPOINTS).permitAll()
                         .requestMatchers(HttpMethod.GET, "/branches/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/rooms/**").permitAll()
                         .requestMatchers("/api/vnpay/**").permitAll()

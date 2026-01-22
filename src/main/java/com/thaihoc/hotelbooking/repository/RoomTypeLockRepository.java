@@ -28,9 +28,4 @@ public interface RoomTypeLockRepository extends JpaRepository<RoomTypeLock, Long
             @Param("checkIn") LocalDateTime checkIn,
             @Param("checkOut") LocalDateTime checkOut
     );
-
-
-
-
-
 }

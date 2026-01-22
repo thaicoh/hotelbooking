@@ -120,7 +120,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     // Lưu ý:
     // - status <> 'CANCELLED': Loại bỏ đơn hủy.
     // - (:branchId IS NULL OR br.id = :branchId): Nếu truyền null sẽ lấy tất cả branch, nếu truyền ID sẽ lọc theo branch đó.
-
+    // Dùng cho trang quản lý phòng trống
     @Query("""
     SELECT b FROM Booking b
     WHERE b.room IS NOT NULL
